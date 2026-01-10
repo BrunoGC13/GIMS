@@ -57,7 +57,7 @@ app.get('/api/test', (req, res) => {
 })
 
 // === Users ===
-app.post('/api/staff/users/create', authenticateToken, async (req, res) => {
+app.post('/api/staff/users/create', authenticateToken, checkPerms("userCreation"), async (req, res) => {
     const { username, password, permissions, ign } = req.body;
 
     if (!username || !password || !permissions || !ign) {
