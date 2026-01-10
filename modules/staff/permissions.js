@@ -37,6 +37,21 @@ async function deleteRole(id) {
     }
 }
 
+async function getRoles() {
+    try {
+        const [result] = await pool.query(
+            'SELECT * FROM `roles`'
+        );
+        if (result.rowsAffected === 0) {
+            return await createConstructor(process.env.ERROR_VAR, 500, "Internal Server Error", undefined);
+        }
+        return await createConstructor(process.env.SUCCESS_VAR, 200, "Got roles", result);
+    } catch (err) {
+        console.error(err);
+        return await createConstructor(process.env.ERROR_VAR, 500, "Internal Server Error", undefined);
+    }
+}
+
 async function editRole(id, name, perms) {
     try {
         const permsJson = JSON.stringify(perms);
