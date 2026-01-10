@@ -622,6 +622,23 @@ app.post('/api/staff/roles/create', async (req, res) => {
     }
 })
 
+app.get('/api/roles/get', async (req, res) => {
+    try {
+        const result = await getRoles();
+        if (result.error) {
+            let internalServerError = await createConstructor(process.env.ERROR_VAR, 500, "Internal Server Error", undefined);
+            internalServerError.main['endpoint'] = req.path;
+            return res.status(internalServerError.status).json(internalServerError);
+        }
+        return res.json(result);
+    } catch (err) {
+        console.error(err);
+        let internalServerError = await createConstructor(process.env.ERROR_VAR, 500, "Internal Server Error", undefined);
+        internalServerError.main['endpoint'] = req.path;
+        return res.status(internalServerError.status).json(internalServerError);
+    }
+})
+
 app.delete('/api/staff/roles/delete', async (req, res) => {
     const { id } = req.body;
     if (!id) {
