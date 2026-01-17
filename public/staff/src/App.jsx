@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
     Home, Users, Bug, AlertTriangle, MessageSquare,
     Newspaper, Server, Shield, Menu, X, Plus, Edit,
-    Trash2, Eye, LogOut, Search, ChevronRight
+    Trash2, Eye, LogOut, Search, ChevronRight, Gamepad2
 } from 'lucide-react';
 
 const API_BASE = '/api';
@@ -21,6 +21,10 @@ export default function GamingBlockDashboard() {
     const [news, setNews] = useState([]);
     const [servers, setServers] = useState([]);
     const [suspections, setSuspections] = useState([]);
+    const [roles, setRoles] = useState([]);
+    const [livePlayers, setLivePlayers] = useState([]);
+    const [selectedPlayer, setSelectedPlayer] = useState(null);
+    const [playerSearch, setPlayerSearch] = useState('');
 
     // Form states
     const [loginForm, setLoginForm] = useState({ username: '', password: '' });
@@ -29,11 +33,15 @@ export default function GamingBlockDashboard() {
     const [newMessage, setNewMessage] = useState({ msg: '' });
     const [newNews, setNewNews] = useState({ title: '', content: '', level: 1 });
     const [newSuspection, setNewSuspection] = useState({ title: '', description: '', subject: '' });
+    const [newUser, setNewUser] = useState({ username: '', password: '', permissions: '', ign: '' });
+    const [newRole, setNewRole] = useState({ name: '', perms: [] });
+    const [selectedPerms, setSelectedPerms] = useState([]);
 
     // Edit states
     const [editingNews, setEditingNews] = useState(null);
     const [editingReport, setEditingReport] = useState(null);
     const [editingSuspection, setEditingSuspection] = useState(null);
+    const [editingRole, setEditingRole] = useState(null);
 
     const fetchWithAuth = async (endpoint, options = {}) => {
         const response = await fetch(`${API_BASE}${endpoint}`, {
@@ -73,23 +81,27 @@ export default function GamingBlockDashboard() {
         if (!token) return;
         setLoading(true);
         try {
-            const [usersRes, bugsRes, reportsRes, messagesRes, newsRes, serversRes, suspectionsRes] = await Promise.all([
-                fetchWithAuth('/staff/users/get'),
-                fetchWithAuth('/bugs/get'),
-                fetchWithAuth('/reports/get'),
-                fetchWithAuth('/msg/get'),
-                fetchWithAuth('/news/get'),
-                fetchWithAuth('/servers/get'),
-                fetchWithAuth('/suspections/get'),
+            const [usersRes, bugsRes, reportsRes, messagesRes, newsRes, serversRes, suspectionsRes, rolesRes, playersRes] = await Promise.all([
+                fetchWithAuth('/staff/users/get').catch(() => ({ data: [] })),
+                fetchWithAuth('/bugs/get').catch(() => ({ data: [] })),
+                fetchWithAuth('/reports/get').catch(() => ({ data: [] })),
+                fetchWithAuth('/msg/get').catch(() => ({ data: [] })),
+                fetchWithAuth('/news/get').catch(() => ({ data: [] })),
+                fetchWithAuth('/servers/get').catch(() => ({ data: [] })),
+                fetchWithAuth('/suspections/get').catch(() => ({ data: [] })),
+                fetchWithAuth('/roles/get').catch(() => ({ data: [] })),
+                fetchWithAuth('/players/live').catch(() => ({ data: { players: [], count: 0 } })),
             ]);
 
-            setUsers(usersRes.data || []);
-            setBugs(bugsRes.data || []);
-            setReports(reportsRes.data || []);
-            setMessages(messagesRes.data || []);
-            setNews(newsRes.data || []);
-            setServers(serversRes.data || []);
-            setSuspections(suspectionsRes.data || []);
+            setUsers(Array.isArray(usersRes.data) ? usersRes.data : []);
+            setBugs(Array.isArray(bugsRes.data) ? bugsRes.data : []);
+            setReports(Array.isArray(reportsRes.data) ? reportsRes.data : []);
+            setMessages(Array.isArray(messagesRes.data) ? messagesRes.data : []);
+            setNews(Array.isArray(newsRes.data) ? newsRes.data : []);
+            setServers(Array.isArray(serversRes.data) ? serversRes.data : []);
+            setSuspections(Array.isArray(suspectionsRes.data) ? suspectionsRes.data : []);
+            setRoles(Array.isArray(rolesRes.data) ? rolesRes.data : []);
+            setLivePlayers(playersRes.data?.players || []);
         } catch (err) {
             console.error('Failed to load data:', err);
         }
@@ -229,6 +241,113 @@ export default function GamingBlockDashboard() {
         loadData();
     };
 
+    const createUser = async () => {
+        await fetchWithAuth('/staff/users/create', {
+            method: 'POST',
+            body: JSON.stringify(newUser),
+        });
+        setNewUser({ username: '', password: '', permissions: '', ign: '' });
+        loadData();
+    };
+
+    const deleteUser = async (username) => {
+        await fetchWithAuth('/staff/users/delete', {
+            method: 'DELETE',
+            body: JSON.stringify({ username }),
+        });
+        loadData();
+    };
+
+    const createRole = async () => {
+        await fetchWithAuth('/staff/roles/create', {
+            method: 'POST',
+            body: JSON.stringify({ name: newRole.name, perms: selectedPerms }),
+        });
+        setNewRole({ name: '', perms: [] });
+        setSelectedPerms([]);
+        loadData();
+    };
+
+    const deleteRole = async (id) => {
+        await fetchWithAuth('/staff/roles/delete', {
+            method: 'DELETE',
+            body: JSON.stringify({ id }),
+        });
+        loadData();
+    };
+
+    const updateRole = async () => {
+        if (!editingRole) return;
+        let permsToSend = [];
+        try {
+            if (Array.isArray(editingRole.perms)) {
+                permsToSend = editingRole.perms;
+            } else if (typeof editingRole.perms === 'string') {
+                permsToSend = JSON.parse(editingRole.perms);
+            }
+        } catch (e) {
+            permsToSend = [];
+        }
+        await fetchWithAuth('/staff/roles/edit', {
+            method: 'PUT',
+            body: JSON.stringify({
+                id: editingRole.id,
+                name: editingRole.name,
+                perms: permsToSend,
+            }),
+        });
+        setEditingRole(null);
+        loadData();
+    };
+
+    const searchPlayer = async () => {
+        if (!playerSearch.trim()) return;
+        try {
+            const result = await fetchWithAuth(`/player/${playerSearch}`);
+            if (result.data) {
+                setSelectedPlayer(result.data);
+            }
+        } catch (err) {
+            console.error('Failed to fetch player:', err);
+        }
+    };
+
+    const availablePermissions = [
+        'userCreation', 'userDeletion', 'userView',
+        'bugCreation', 'bugDeletion', 'bugView',
+        'reportCreation', 'reportDeletion', 'reportView',
+        'msgCreation', 'msgDeletion', 'msgView',
+        'newsCreation', 'newsEdit', 'newsDeletion', 'newsView',
+        'serverView',
+        'livePlayersView', 'playerView',
+        'suspectionCreation', 'suspectionEdit', 'suspectionDeletion', 'suspectionView',
+        'roleCreation', 'roleEdit', 'roleDeletion', 'roleView'
+    ];
+
+    const togglePermission = (perm) => {
+        setSelectedPerms(prev =>
+            prev.includes(perm) ? prev.filter(p => p !== perm) : [...prev, perm]
+        );
+    };
+
+    const toggleEditPermission = (perm) => {
+        if (!editingRole) return;
+        let currentPerms = [];
+        try {
+            if (Array.isArray(editingRole.perms)) {
+                currentPerms = editingRole.perms;
+            } else if (typeof editingRole.perms === 'string') {
+                currentPerms = JSON.parse(editingRole.perms);
+            }
+        } catch (e) {
+            currentPerms = [];
+        }
+        const newPerms = currentPerms.includes(perm)
+            ? currentPerms.filter(p => p !== perm)
+            : [...currentPerms, perm];
+        setEditingRole({ ...editingRole, perms: newPerms });
+    };
+
     if (!token) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center p-4">
@@ -274,7 +393,9 @@ export default function GamingBlockDashboard() {
 
     const menuItems = [
         { id: 'dashboard', label: 'Dashboard', icon: Home },
+        { id: 'players', label: 'Players', icon: Gamepad2 },
         { id: 'users', label: 'Users', icon: Users },
+        { id: 'roles', label: 'Roles', icon: Shield },
         { id: 'bugs', label: 'Bugs', icon: Bug },
         { id: 'reports', label: 'Reports', icon: AlertTriangle },
         { id: 'messages', label: 'Messages', icon: MessageSquare },
@@ -359,6 +480,11 @@ export default function GamingBlockDashboard() {
                                 <h3 className="text-4xl font-bold mb-2">{users.length}</h3>
                                 <p className="text-blue-100">Total Users</p>
                             </div>
+                            <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-6 text-white shadow-lg card-hover cursor-pointer">
+                                <Gamepad2 size={32} className="mb-4 opacity-80" />
+                                <h3 className="text-4xl font-bold mb-2">{livePlayers.length}</h3>
+                                <p className="text-green-100">Online Players</p>
+                            </div>
                             <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-xl p-6 text-white shadow-lg card-hover cursor-pointer">
                                 <Bug size={32} className="mb-4 opacity-80" />
                                 <h3 className="text-4xl font-bold mb-2">{bugs.length}</h3>
@@ -369,10 +495,144 @@ export default function GamingBlockDashboard() {
                                 <h3 className="text-4xl font-bold mb-2">{reports.length}</h3>
                                 <p className="text-yellow-100">Reports</p>
                             </div>
-                            <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-6 text-white shadow-lg card-hover cursor-pointer">
-                                <Server size={32} className="mb-4 opacity-80" />
-                                <h3 className="text-4xl font-bold mb-2">{servers.length}</h3>
-                                <p className="text-green-100">Servers</p>
+                        </div>
+                    )}
+
+                    {/* Players */}
+                    {activeTab === 'players' && (
+                        <div className="space-y-6 animate-fade-in">
+                            {/* Search Bar */}
+                            <div className="bg-gray-800 rounded-xl p-6 border border-gray-700 shadow-lg">
+                                <h3 className="text-xl font-bold text-white mb-4">Search Player</h3>
+                                <div className="flex gap-3">
+                                    <input
+                                        type="text"
+                                        placeholder="Enter player name..."
+                                        value={playerSearch}
+                                        onChange={(e) => setPlayerSearch(e.target.value)}
+                                        onKeyDown={(e) => e.key === 'Enter' && searchPlayer()}
+                                        className="flex-1 px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+                                    />
+                                    <button
+                                        onClick={searchPlayer}
+                                        className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold transition flex items-center gap-2"
+                                    >
+                                        <Search size={20} />
+                                        Search
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Live Players */}
+                            <div className="bg-gray-800 rounded-xl p-6 border border-gray-700 shadow-lg">
+                                <div className="flex items-center justify-between mb-6">
+                                    <h3 className="text-xl font-bold text-white">Live Players ({livePlayers.length})</h3>
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                                        <span className="text-green-400 text-sm font-semibold">LIVE</span>
+                                    </div>
+                                </div>
+
+                                {livePlayers.length === 0 ? (
+                                    <div className="text-center py-12">
+                                        <Gamepad2 size={48} className="mx-auto mb-4 text-gray-600" />
+                                        <p className="text-gray-400">No players online</p>
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        {livePlayers.map((player, i) => (
+                                            <div
+                                                key={i}
+                                                onClick={() => setSelectedPlayer(player)}
+                                                className="bg-gray-700 rounded-xl p-4 border border-gray-600 hover:border-green-500 transition cursor-pointer card-hover"
+                                            >
+                                                <div className="flex items-center gap-4">
+                                                    <img
+                                                        src={`https://mc-heads.net/avatar/${player.name}/48`}
+                                                        alt={player.name}
+                                                        className="w-12 h-12 rounded-lg"
+                                                    />
+                                                    <div className="flex-1">
+                                                        <h4 className="text-white font-bold">{player.name}</h4>
+                                                        <p className="text-sm text-gray-400">{player.currentServer}</p>
+                                                    </div>
+                                                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Player Detail Popup */}
+                    {selectedPlayer && (
+                        <div
+                            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+                            onClick={() => setSelectedPlayer(null)}
+                        >
+                            <div
+                                className="bg-gray-800 rounded-2xl border border-gray-700 shadow-2xl max-w-md w-full animate-fade-in"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                {/* Header */}
+                                <div className="relative bg-gradient-to-r from-green-500 to-green-600 rounded-t-2xl p-6">
+                                    <button
+                                        onClick={() => setSelectedPlayer(null)}
+                                        className="absolute top-4 right-4 text-white hover:bg-white/20 p-2 rounded-lg transition"
+                                    >
+                                        <X size={20} />
+                                    </button>
+                                    <div className="flex flex-col items-center">
+                                        <img
+                                            src={`https://mc-heads.net/avatar/${selectedPlayer.name}/128`}
+                                            alt={selectedPlayer.name}
+                                            className="w-24 h-24 rounded-xl shadow-lg mb-4"
+                                        />
+                                        <h2 className="text-2xl font-bold text-white">{selectedPlayer.name}</h2>
+                                        <div className="flex items-center gap-2 mt-2">
+                                            {selectedPlayer.online && (
+                                                <>
+                                                    <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+                                                    <span className="text-white text-sm font-semibold">Online</span>
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Body */}
+                                <div className="p-6 space-y-4">
+                                    <div className="bg-gray-700 rounded-lg p-4">
+                                        <p className="text-gray-400 text-sm mb-1">Current Server</p>
+                                        <p className="text-white font-semibold text-lg">{selectedPlayer.currentServer || 'Unknown'}</p>
+                                    </div>
+
+                                    <div className="bg-gray-700 rounded-lg p-4">
+                                        <p className="text-gray-400 text-sm mb-1">Last Join</p>
+                                        <p className="text-white font-semibold">{selectedPlayer.lastJoin || 'Never'}</p>
+                                    </div>
+
+                                    <div className="bg-gray-700 rounded-lg p-4">
+                                        <p className="text-gray-400 text-sm mb-1">Status</p>
+                                        <div className="flex items-center gap-2">
+                                            <div className={`w-3 h-3 rounded-full ${selectedPlayer.online ? 'bg-green-500' : 'bg-gray-500'}`}></div>
+                                            <p className={`font-semibold ${selectedPlayer.online ? 'text-green-400' : 'text-gray-400'}`}>
+                                                {selectedPlayer.online ? 'Online' : 'Offline'}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* Player Head with Body */}
+                                    <div className="bg-gray-700 rounded-lg p-4 flex justify-center">
+                                        <img
+                                            src={`https://mc-heads.net/body/${selectedPlayer.name}/200`}
+                                            alt={`${selectedPlayer.name} body`}
+                                            className="h-48"
+                                        />
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     )}
@@ -380,6 +640,49 @@ export default function GamingBlockDashboard() {
                     {/* Users */}
                     {activeTab === 'users' && (
                         <div className="space-y-6 animate-fade-in">
+                            <div className="bg-gray-800 rounded-xl p-6 border border-gray-700 shadow-lg">
+                                <h3 className="text-xl font-bold text-white mb-4">Create New User</h3>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <input
+                                        type="text"
+                                        placeholder="Username"
+                                        value={newUser.username}
+                                        onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
+                                        className="px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white"
+                                    />
+                                    <input
+                                        type="password"
+                                        placeholder="Password"
+                                        value={newUser.password}
+                                        onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                                        className="px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white"
+                                    />
+                                    <select
+                                        value={newUser.permissions}
+                                        onChange={(e) => setNewUser({ ...newUser, permissions: e.target.value })}
+                                        className="px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white"
+                                    >
+                                        <option value="">Select Role</option>
+                                        {roles.map((role) => (
+                                            <option key={role.id} value={role.name}>
+                                                {role.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <input
+                                        type="text"
+                                        placeholder="IGN (In-Game Name)"
+                                        value={newUser.ign}
+                                        onChange={(e) => setNewUser({ ...newUser, ign: e.target.value })}
+                                        className="px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white"
+                                    />
+                                </div>
+                                <button onClick={createUser} className="mt-4 bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold transition">
+                                    <Plus size={20} className="inline mr-2" />
+                                    Create User
+                                </button>
+                            </div>
+
                             <div className="grid gap-4">
                                 {users.map((user, i) => (
                                     <div key={i} className="bg-gray-800 rounded-xl p-6 border border-gray-700 shadow-lg card-hover">
@@ -388,16 +691,176 @@ export default function GamingBlockDashboard() {
                                                 <h3 className="text-xl font-bold text-white">{user.name}</h3>
                                                 <p className="text-gray-400 text-sm">IGN: {user.ign}</p>
                                             </div>
-                                            <span className={`px-4 py-2 rounded-full text-sm font-semibold ${
-                                                user.permissions === 'admin'
-                                                    ? 'bg-purple-500/20 text-purple-300'
-                                                    : 'bg-blue-500/20 text-blue-300'
-                                            }`}>
-                        {user.permissions}
-                      </span>
+                                            <div className="flex items-center gap-3">
+                        <span className={`px-4 py-2 rounded-full text-sm font-semibold ${
+                            user.permissions === 'admin'
+                                ? 'bg-purple-500/20 text-purple-300'
+                                : 'bg-blue-500/20 text-blue-300'
+                        }`}>
+                          {user.permissions}
+                        </span>
+                                                <button
+                                                    onClick={() => deleteUser(user.name)}
+                                                    className="text-red-400 hover:text-red-300 p-2 hover:bg-gray-700 rounded-lg transition"
+                                                >
+                                                    <Trash2 size={20} />
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Roles */}
+                    {activeTab === 'roles' && (
+                        <div className="space-y-6 animate-fade-in">
+                            <div className="bg-gray-800 rounded-xl p-6 border border-gray-700 shadow-lg">
+                                <h3 className="text-xl font-bold text-white mb-4">Create New Role</h3>
+                                <div className="space-y-4">
+                                    <input
+                                        type="text"
+                                        placeholder="Role name"
+                                        value={newRole.name}
+                                        onChange={(e) => setNewRole({ ...newRole, name: e.target.value })}
+                                        className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white"
+                                    />
+                                    <div>
+                                        <p className="text-gray-300 mb-3 font-medium">Select Permissions:</p>
+                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                            {availablePermissions.map(perm => (
+                                                <label key={perm} className="flex items-center gap-2 bg-gray-700 px-3 py-2 rounded-lg cursor-pointer hover:bg-gray-600 transition">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedPerms.includes(perm)}
+                                                        onChange={() => togglePermission(perm)}
+                                                        className="w-4 h-4"
+                                                    />
+                                                    <span className="text-sm text-gray-200">{perm}</span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="bg-gray-900 rounded p-3 font-mono text-sm text-green-400">
+                                        {JSON.stringify(selectedPerms, null, 2)}
+                                    </div>
+                                    <button onClick={createRole} className="bg-purple-500 hover:bg-purple-600 text-white px-6 py-3 rounded-lg font-semibold transition">
+                                        <Plus size={20} className="inline mr-2" />
+                                        Create Role
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="grid gap-4">
+                                {roles.length === 0 ? (
+                                    <div className="bg-gray-800 rounded-xl p-12 border border-gray-700 text-center">
+                                        <Shield size={48} className="mx-auto mb-4 text-gray-600" />
+                                        <p className="text-gray-400">No roles found. Create your first role!</p>
+                                    </div>
+                                ) : (
+                                    roles.map((role) => {
+                                        let rolePerms = [];
+                                        try {
+                                            if (Array.isArray(role.perms)) {
+                                                rolePerms = role.perms;
+                                            } else if (typeof role.perms === 'string') {
+                                                rolePerms = JSON.parse(role.perms);
+                                            }
+                                            if (!Array.isArray(rolePerms)) {
+                                                rolePerms = [];
+                                            }
+                                        } catch (e) {
+                                            console.error('Error parsing role perms:', e);
+                                            rolePerms = [];
+                                        }
+
+                                        return (
+                                            <div key={role.id} className="bg-gray-800 rounded-xl p-6 border border-gray-700 shadow-lg card-hover">
+                                                {editingRole?.id === role.id ? (
+                                                    <div className="space-y-4">
+                                                        <input
+                                                            type="text"
+                                                            value={editingRole.name}
+                                                            onChange={(e) => setEditingRole({ ...editingRole, name: e.target.value })}
+                                                            className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white"
+                                                            placeholder="Role name"
+                                                        />
+                                                        <div>
+                                                            <p className="text-gray-300 mb-3 font-medium">Edit Permissions:</p>
+                                                            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                                                {availablePermissions.map(perm => {
+                                                                    let currentPerms = [];
+                                                                    try {
+                                                                        if (Array.isArray(editingRole.perms)) {
+                                                                            currentPerms = editingRole.perms;
+                                                                        } else if (typeof editingRole.perms === 'string') {
+                                                                            currentPerms = JSON.parse(editingRole.perms);
+                                                                        }
+                                                                    } catch (e) {
+                                                                        currentPerms = [];
+                                                                    }
+                                                                    return (
+                                                                        <label key={perm} className="flex items-center gap-2 bg-gray-700 px-3 py-2 rounded-lg cursor-pointer hover:bg-gray-600 transition">
+                                                                            <input
+                                                                                type="checkbox"
+                                                                                checked={currentPerms.includes(perm)}
+                                                                                onChange={() => toggleEditPermission(perm)}
+                                                                                className="w-4 h-4"
+                                                                            />
+                                                                            <span className="text-sm text-gray-200">{perm}</span>
+                                                                        </label>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex gap-3">
+                                                            <button onClick={updateRole} className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition">
+                                                                Save
+                                                            </button>
+                                                            <button onClick={() => setEditingRole(null)} className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition">
+                                                                Cancel
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <>
+                                                        <div className="flex items-start justify-between mb-3">
+                                                            <div className="flex-1">
+                                                                <h3 className="text-xl font-bold text-white mb-3">{role.name}</h3>
+                                                                <div className="flex flex-wrap gap-2">
+                                                                    {rolePerms.length > 0 ? (
+                                                                        rolePerms.map(perm => (
+                                                                            <span key={perm} className="px-3 py-1 bg-blue-500/20 text-blue-300 rounded-full text-sm">
+                                        {perm}
+                                      </span>
+                                                                        ))
+                                                                    ) : (
+                                                                        <span className="text-gray-500 text-sm italic">No permissions assigned</span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex gap-2 ml-4">
+                                                                <button
+                                                                    onClick={() => setEditingRole({ ...role, perms: rolePerms })}
+                                                                    className="text-blue-400 hover:text-blue-300 p-2 hover:bg-gray-700 rounded-lg transition"
+                                                                >
+                                                                    <Edit size={20} />
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => deleteRole(role.id)}
+                                                                    className="text-red-400 hover:text-red-300 p-2 hover:bg-gray-700 rounded-lg transition"
+                                                                >
+                                                                    <Trash2 size={20} />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </>
+                                                )}
+                                            </div>
+                                        );
+                                    })
+                                )}
                             </div>
                         </div>
                     )}

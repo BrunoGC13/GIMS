@@ -73,5 +73,6 @@ async function editRole(id, name, perms) {
 module.exports = {
     createRole,
     deleteRole,
-    editRole
+    editRole,
+    getRoles
 }
