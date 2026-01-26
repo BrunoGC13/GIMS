@@ -40,8 +40,28 @@ async function getPlayer(name) {
     }
 }
 
+async function sendPlayerToServer(name, server) {
+    try {
+        const response = await fetch(
+            process.env.CONNECTOR_IP + ':' + process.env.CONNECTOR_PORT + `/api/post/sendPlayer/${name}`, {
+                method: "POST",
+                body: JSON.stringify({server: server})
+            }
+        );
+        if (!response.ok) {
+            return createConstructor("error", 500, "Internal Server Error");
+        }
+
+        return createConstructor(process.env.SUCCESS_VAR, 200, "Sent player", undefined);
+    } catch (err) {
+        console.error(err);
+        return createConstructor("error", 500, "Internal Server Error");
+    }
+}
+
 // === Exporting ===
 module.exports = {
     getLivePlayers,
-    getPlayer
+    getPlayer,
+    sendPlayerToServer
 }

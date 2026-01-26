@@ -25,6 +25,7 @@ export default function GamingBlockDashboard() {
     const [livePlayers, setLivePlayers] = useState([]);
     const [selectedPlayer, setSelectedPlayer] = useState(null);
     const [playerSearch, setPlayerSearch] = useState('');
+    const [proxyServers, setProxyServers] = useState([]);
 
     // Form states
     const [loginForm, setLoginForm] = useState({ username: '', password: '' });
@@ -81,7 +82,7 @@ export default function GamingBlockDashboard() {
         if (!token) return;
         setLoading(true);
         try {
-            const [usersRes, bugsRes, reportsRes, messagesRes, newsRes, serversRes, suspectionsRes, rolesRes, playersRes] = await Promise.all([
+            const [usersRes, bugsRes, reportsRes, messagesRes, newsRes, serversRes, suspectionsRes, rolesRes, playersRes, proxyServersRes] = await Promise.all([
                 fetchWithAuth('/staff/users/get').catch(() => ({ data: [] })),
                 fetchWithAuth('/bugs/get').catch(() => ({ data: [] })),
                 fetchWithAuth('/reports/get').catch(() => ({ data: [] })),
@@ -91,6 +92,7 @@ export default function GamingBlockDashboard() {
                 fetchWithAuth('/suspections/get').catch(() => ({ data: [] })),
                 fetchWithAuth('/roles/get').catch(() => ({ data: [] })),
                 fetchWithAuth('/players/live').catch(() => ({ data: { players: [], count: 0 } })),
+                fetchWithAuth('/servers/getProxy').catch(() => ({ data: { servers: [], count: 0 } })),
             ]);
 
             setUsers(Array.isArray(usersRes.data) ? usersRes.data : []);
@@ -102,6 +104,7 @@ export default function GamingBlockDashboard() {
             setSuspections(Array.isArray(suspectionsRes.data) ? suspectionsRes.data : []);
             setRoles(Array.isArray(rolesRes.data) ? rolesRes.data : []);
             setLivePlayers(playersRes.data?.players || []);
+            setProxyServers(proxyServersRes.data?.servers || []);
         } catch (err) {
             console.error('Failed to load data:', err);
         }
@@ -312,16 +315,54 @@ export default function GamingBlockDashboard() {
         }
     };
 
+    const sendPlayerToServer = async (playerName, serverName) => {
+        try {
+            const result = await fetch(`${API_BASE}/player/send/${playerName}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({ server: serverName }),
+            });
+            const data = await result.json();
+            if (data.success) {
+                // Update the selected player's current server with animation
+                setSelectedPlayer(prev => ({
+                    ...prev,
+                    currentServer: serverName
+                }));
+
+                // Also update in livePlayers list
+                setLivePlayers(prev => prev.map(p =>
+                    p.name === playerName ? { ...p, currentServer: serverName } : p
+                ));
+
+                // Show success message
+                const successMsg = document.createElement('div');
+                successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 animate-fade-in';
+                successMsg.textContent = `✓ ${playerName} sent to ${serverName}!`;
+                document.body.appendChild(successMsg);
+                setTimeout(() => successMsg.remove(), 3000);
+            } else {
+                alert('Failed to send player');
+            }
+        } catch (err) {
+            console.error('Failed to send player:', err);
+            alert('Error sending player to server');
+        }
+    };
+
     const availablePermissions = [
         'userCreation', 'userDeletion', 'userView',
         'bugCreation', 'bugDeletion', 'bugView',
         'reportCreation', 'reportDeletion', 'reportView',
         'msgCreation', 'msgDeletion', 'msgView',
         'newsCreation', 'newsEdit', 'newsDeletion', 'newsView',
-        'serverView',
-        'livePlayersView', 'playerView',
+        'serverView', 'serverLogsView', 'serverViewProxy',
         'suspectionCreation', 'suspectionEdit', 'suspectionDeletion', 'suspectionView',
-        'roleCreation', 'roleEdit', 'roleDeletion', 'roleView'
+        'roleCreation', 'roleEdit', 'roleDeletion', 'roleView',
+        'livePlayersView', 'playerView', 'playerSend'
     ];
 
     const togglePermission = (perm) => {
@@ -606,7 +647,7 @@ export default function GamingBlockDashboard() {
                                 <div className="p-6 space-y-4">
                                     <div className="bg-gray-700 rounded-lg p-4">
                                         <p className="text-gray-400 text-sm mb-1">Current Server</p>
-                                        <p className="text-white font-semibold text-lg">{selectedPlayer.currentServer || 'Unknown'}</p>
+                                        <p className="text-white font-semibold text-lg transition-all duration-500">{selectedPlayer.currentServer || 'Unknown'}</p>
                                     </div>
 
                                     <div className="bg-gray-700 rounded-lg p-4">
@@ -632,6 +673,35 @@ export default function GamingBlockDashboard() {
                                             className="h-48"
                                         />
                                     </div>
+
+                                    {/* Send to Server */}
+                                    {selectedPlayer.online && proxyServers.length > 0 && (
+                                        <div className="bg-gray-700 rounded-lg p-4">
+                                            <p className="text-gray-400 text-sm mb-3">Send to Server</p>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                {proxyServers.map((server, i) => {
+                                                    const isCurrentServer = selectedPlayer.currentServer === server;
+                                                    return (
+                                                        <button
+                                                            key={i}
+                                                            onClick={() => sendPlayerToServer(selectedPlayer.name, server)}
+                                                            className={`px-4 py-2 rounded-lg font-semibold transition-all duration-300 transform ${
+                                                                isCurrentServer
+                                                                    ? 'bg-green-500 text-white scale-105 shadow-lg cursor-not-allowed'
+                                                                    : 'bg-blue-500 hover:bg-blue-600 text-white hover:scale-105'
+                                                            }`}
+                                                            disabled={isCurrentServer}
+                                                        >
+                                                            {isCurrentServer && (
+                                                                <span className="inline-block mr-1">✓</span>
+                                                            )}
+                                                            {server}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>

@@ -43,9 +43,6 @@ async function getMessages() {
         const [result] = await pool.query(
             'SELECT * FROM `msg`'
         );
-        if (result.affectedRows === 0) {
-            return internalServerError;
-        }
 
         return result;
     } catch (err) {

@@ -28,13 +28,14 @@ const {signToken} = require('./modules/middleware/signToken');
 const {authenticateToken} = require("./modules/middleware/authToken");
 const {postBug} = require("./modules/bugs/bugs");
 const {sendMessage, getMessages, deleteMessage} = require("./modules/staff/msg/msg");
-const {getLogs, getServers} = require("./modules/server/servers");
+const {getLogs, getServers, getProxyServers} = require("./modules/server/servers");
 const {createSuspection, getSuspections, editSuspection, deleteSuspection} = require("./modules/suspections/suspections");
 const {createUser} = require("./modules/staff/users/users");
 const {createConstructor} = require("./modules/vars/constructor");
 const {createRole, deleteRole, editRole, getRoles} = require("./modules/staff/permissions");
 const {checkPerms} = require("./modules/middleware/permissions");
-const {getLivePlayers, getPlayer} = require("./modules/players/players");
+const {getLivePlayers, getPlayer, sendPlayerToServer} = require("./modules/players/players");
+const { body, param, validationResult } = require('express-validator');
 
 // === Vars ===
 const app = express();
@@ -132,6 +133,28 @@ app.get('/api/staff/users/get', authenticateToken, checkPerms("userView"), async
         console.error(err);
         internalServerError.main['endpoint'] = req.path;
         return res.status(500).json(internalServerError);
+    }
+});
+
+app.get('/api/staff/users/get/:name', authenticateToken, checkPerms("userView"), async (req, res) => {
+    const { name } = req.params;
+    try {
+        const result = await users.getUsers();
+        if (result.error === true) {
+            result.main['endpoint'] = req.path;
+            return res.status(500).json(result);
+        }
+        return res.json(await createConstructor(
+            process.env.SUCCESS_VAR,
+            200,
+            "Got user",
+            result.filter((e) => e.name === name)[0]
+        ));
+    } catch (err) {
+        console.error(err);
+        let internalServerError = await createConstructor(process.env.ERROR_VAR, 500, "Internal Server Error", undefined);
+        internalServerError.main['endpoint'] = req.path;
+        return res.status(internalServerError.status).json(internalServerError);
     }
 });
 
@@ -364,7 +387,11 @@ app.get('/api/msg/get', authenticateToken, checkPerms("msgView"), async (req, re
 })
 
 // === News ===
-app.post('/api/news/write', authenticateToken, checkPerms("newsCreation"), async (req, res) => {
+app.post('/api/news/write', authenticateToken, checkPerms("newsCreation"), [body('title').isString().trim().isLength({ min: 1, max: 200 }).escape(), body('content').isString().trim().isLength({ min: 1, max: 5000 }).escape(), body('level').isInt({ min: 1, max: 5 })], async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+    }
     const { username } = req.user;
     const { content, title, level } = req.body;
     if (!content || !title || !level) {
@@ -461,7 +488,7 @@ app.get('/api/news/get', authenticateToken, checkPerms("newsView"), async (req, 
 })
 
 // === Servers ===
-app.get('/api/servers/logs/get', authenticateToken, checkPerms("serverView"), async (req, res) => {
+app.get('/api/servers/logs/get', authenticateToken, checkPerms("serverLogsView"), param('id').isInt(), async (req, res) => {
     const { id } = req.query;
     try {
         const result = await getLogs(id);
@@ -495,6 +522,24 @@ app.get('/api/servers/get', authenticateToken, checkPerms("serverView"), async (
         console.error(err);
         internalServerError.main['endpoint'] = req.path;
         return res.status(500).json(internalServerError);
+    }
+})
+
+app.get('/api/servers/getProxy', authenticateToken, checkPerms("serverViewProxy"), async (req, res) => {
+    try {
+        const result = await getProxyServers();
+        if (result.error) {
+            let internalServerError = await createConstructor(process.env.ERROR_VAR, 500, "Internal Server Error", undefined);
+            internalServerError.main['endpoint'] = req.path;
+            return res.status(internalServerError.status).json(internalServerError);
+        }
+        result.main['endpoint'] = req.path;
+        return res.json(result);
+    } catch (err) {
+        console.error(err);
+        let internalServerError = await createConstructor(process.env.ERROR_VAR, 500, "Internal Server Error", undefined);
+        internalServerError.main['endpoint'] = req.path;
+        return res.status(internalServerError.status).json(internalServerError);
     }
 })
 
@@ -708,6 +753,36 @@ app.get('/api/player/:name', authenticateToken, checkPerms("playerView"), async 
         return res.status(internalServerError.status).json(internalServerError);
     }
 })
+
+app.post('/api/player/send/:name', authenticateToken, checkPerms("playerSending"), async (req, res) => {
+    const { name } = req.params;
+    const { server } = req.body;
+    if (!name || !server) {
+        let constructor = createConstructor(
+            process.env.SUCCESS_VAR,
+            400,
+            "Please include the needed variables!",
+            undefined
+        );
+        constructor.main['endpoint'] = req.path;
+        return res.status(constructor.status).json(constructor);
+    }
+    try {
+        const result = await sendPlayerToServer(name, server);
+        if (result.error) {
+            let internalServerError = await createConstructor(process.env.ERROR_VAR, 500, "Internal Server Error", undefined);
+            internalServerError.main['endpoint'] = req.path;
+            return res.status(internalServerError.status).json(internalServerError);
+        }
+        result.main['endpoint'] = req.path;
+        return res.json(result);
+    } catch (err) {
+        console.error(err);
+        let internalServerError = await createConstructor(process.env.ERROR_VAR, 500, "Internal Server Error", undefined);
+        internalServerError.main['endpoint'] = req.path;
+        return res.status(internalServerError.status).json(internalServerError);
+    }
+});
 
 app.use(express.static(path.join(__dirname, 'public/staff/dist')));
 
