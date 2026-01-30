@@ -26,6 +26,9 @@ export default function GamingBlockDashboard() {
     const [selectedPlayer, setSelectedPlayer] = useState(null);
     const [playerSearch, setPlayerSearch] = useState('');
     const [proxyServers, setProxyServers] = useState([]);
+    const [selectedChatUser, setSelectedChatUser] = useState(null);
+    const [selectedServer, setSelectedServer] = useState(null);
+    const [serverLogs, setServerLogs] = useState([]);
 
     // Form states
     const [loginForm, setLoginForm] = useState({ username: '', password: '' });
@@ -353,13 +356,51 @@ export default function GamingBlockDashboard() {
         }
     };
 
+    const viewServerLogs = async (serverId) => {
+        try {
+            const result = await fetchWithAuth(`/servers/logs/get/${serverId}`);
+            if (result.data) {
+                setServerLogs(result.data);
+            }
+        } catch (err) {
+            console.error('Failed to fetch server logs:', err);
+            setServerLogs([]);
+        }
+    };
+
+    const performServerAction = async (serverId, action) => {
+        try {
+            const result = await fetch(`${API_BASE}/servers/action/${action}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({ id: serverId }),
+            });
+            const data = await result.json();
+            if (data.success) {
+                const successMsg = document.createElement('div');
+                successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 animate-fade-in';
+                successMsg.textContent = `✓ Server ${action.replace('_', ' ')} successful!`;
+                document.body.appendChild(successMsg);
+                setTimeout(() => successMsg.remove(), 3000);
+            } else {
+                alert(`Failed to ${action.replace('_', ' ')}`);
+            }
+        } catch (err) {
+            console.error('Server action failed:', err);
+            alert('Error performing server action');
+        }
+    };
+
     const availablePermissions = [
         'userCreation', 'userDeletion', 'userView',
         'bugCreation', 'bugDeletion', 'bugView',
         'reportCreation', 'reportDeletion', 'reportView',
         'msgCreation', 'msgDeletion', 'msgView',
         'newsCreation', 'newsEdit', 'newsDeletion', 'newsView',
-        'serverView', 'serverLogsView', 'serverViewProxy',
+        'serverView', 'serverLogsView', 'serverViewProxy', 'serverAction',
         'suspectionCreation', 'suspectionEdit', 'suspectionDeletion', 'suspectionView',
         'roleCreation', 'roleEdit', 'roleDeletion', 'roleView',
         'livePlayersView', 'playerView', 'playerSend'
@@ -610,15 +651,15 @@ export default function GamingBlockDashboard() {
                     {/* Player Detail Popup */}
                     {selectedPlayer && (
                         <div
-                            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+                            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto"
                             onClick={() => setSelectedPlayer(null)}
                         >
                             <div
-                                className="bg-gray-800 rounded-2xl border border-gray-700 shadow-2xl max-w-md w-full animate-fade-in"
+                                className="bg-gray-800 rounded-2xl border border-gray-700 shadow-2xl max-w-md w-full my-8 animate-fade-in max-h-[90vh] overflow-y-auto"
                                 onClick={(e) => e.stopPropagation()}
                             >
                                 {/* Header */}
-                                <div className="relative bg-gradient-to-r from-green-500 to-green-600 rounded-t-2xl p-6">
+                                <div className="sticky top-0 z-10 relative bg-gradient-to-r from-green-500 to-green-600 rounded-t-2xl p-6">
                                     <button
                                         onClick={() => setSelectedPlayer(null)}
                                         className="absolute top-4 right-4 text-white hover:bg-white/20 p-2 rounded-lg transition"
@@ -1066,7 +1107,7 @@ export default function GamingBlockDashboard() {
 
                     {/* Messages */}
                     {activeTab === 'messages' && (
-                        <div className="space-y-6 animate-fade-in">
+                        <div className="space-y-6 animate-fade-in relative">
                             {/* Chat Container */}
                             <div className="bg-gray-800 rounded-xl border border-gray-700 shadow-lg overflow-hidden flex flex-col" style={{ height: '600px' }}>
                                 {/* Chat Header */}
@@ -1085,13 +1126,21 @@ export default function GamingBlockDashboard() {
                                         messages.map((msg, i) => (
                                             <div key={msg.id || i} className="flex gap-3 animate-fade-in">
                                                 {/* Avatar */}
-                                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center text-white font-bold flex-shrink-0">
+                                                <div
+                                                    className="w-10 h-10 rounded-full bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center text-white font-bold flex-shrink-0 cursor-pointer hover:ring-2 hover:ring-green-400 transition"
+                                                    onClick={() => setSelectedChatUser(msg.sender)}
+                                                >
                                                     {(msg.sender || 'U')[0].toUpperCase()}
                                                 </div>
                                                 {/* Message Content */}
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-baseline gap-2 mb-1">
-                                                        <span className="text-white font-semibold">{msg.sender || 'Unknown User'}</span>
+                            <span
+                                className="text-white font-semibold cursor-pointer hover:underline"
+                                onClick={() => setSelectedChatUser(msg.sender)}
+                            >
+                              {msg.sender || 'Unknown User'}
+                            </span>
                                                         <span className="text-xs text-gray-500">{msg.date ? new Date(msg.date).toLocaleString() : 'Just now'}</span>
                                                     </div>
                                                     <div className="bg-gray-700 rounded-lg rounded-tl-none px-4 py-2 flex items-center justify-between">
@@ -1130,6 +1179,87 @@ export default function GamingBlockDashboard() {
                                     </div>
                                 </div>
                             </div>
+
+                            {/* Slack-style User Info Sidebar */}
+                            {selectedChatUser && (
+                                <div className="fixed top-0 right-0 h-full w-80 bg-gray-800 border-l border-gray-700 shadow-2xl z-50 animate-slide-in overflow-y-auto">
+                                    <style>{`
+                    @keyframes slide-in {
+                      from { transform: translateX(100%); }
+                      to { transform: translateX(0); }
+                    }
+                    .animate-slide-in {
+                      animation: slide-in 0.3s ease-out;
+                    }
+                  `}</style>
+
+                                    {/* Header */}
+                                    <div className="sticky top-0 bg-gray-900 p-4 border-b border-gray-700 flex items-center justify-between">
+                                        <h3 className="text-lg font-bold text-white">Profile</h3>
+                                        <button
+                                            onClick={() => setSelectedChatUser(null)}
+                                            className="text-gray-400 hover:text-white p-2 hover:bg-gray-700 rounded-lg transition"
+                                        >
+                                            <X size={20} />
+                                        </button>
+                                    </div>
+
+                                    {/* User Info */}
+                                    <div className="p-6 space-y-4">
+                                        {/* Avatar */}
+                                        <div className="flex justify-center">
+                                            <div className="w-24 h-24 rounded-full bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center text-white text-3xl font-bold shadow-lg">
+                                                {selectedChatUser[0].toUpperCase()}
+                                            </div>
+                                        </div>
+
+                                        {/* Name */}
+                                        <div className="text-center">
+                                            <h2 className="text-2xl font-bold text-white">{selectedChatUser}</h2>
+                                            <p className="text-gray-400 text-sm mt-1">Staff Member</p>
+                                        </div>
+
+                                        {/* Stats */}
+                                        <div className="bg-gray-700 rounded-lg p-4 space-y-3">
+                                            <div>
+                                                <p className="text-gray-400 text-xs mb-1">Total Messages</p>
+                                                <p className="text-white font-semibold text-lg">
+                                                    {messages.filter(m => m.sender === selectedChatUser).length}
+                                                </p>
+                                            </div>
+                                            <div>
+                                                <p className="text-gray-400 text-xs mb-1">Last Active</p>
+                                                <p className="text-white font-semibold">
+                                                    {(() => {
+                                                        const userMessages = messages.filter(m => m.sender === selectedChatUser);
+                                                        if (userMessages.length === 0) return 'Never';
+                                                        const lastMsg = userMessages[userMessages.length - 1];
+                                                        return lastMsg.date ? new Date(lastMsg.date).toLocaleString() : 'Recently';
+                                                    })()}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {/* Recent Messages */}
+                                        <div className="bg-gray-700 rounded-lg p-4">
+                                            <p className="text-gray-400 text-xs mb-3">Recent Messages</p>
+                                            <div className="space-y-2 max-h-60 overflow-y-auto">
+                                                {messages
+                                                    .filter(m => m.sender === selectedChatUser)
+                                                    .slice(-5)
+                                                    .map((msg, i) => (
+                                                        <div key={i} className="bg-gray-600 rounded p-2">
+                                                            <p className="text-white text-sm">{msg.content}</p>
+                                                            <p className="text-gray-400 text-xs mt-1">
+                                                                {msg.date ? new Date(msg.date).toLocaleString() : 'Just now'}
+                                                            </p>
+                                                        </div>
+                                                    ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -1249,7 +1379,14 @@ export default function GamingBlockDashboard() {
                                 </div>
                             ) : (
                                 servers.map((server, i) => (
-                                    <div key={i} className="bg-gray-800 rounded-xl p-6 border border-gray-700 shadow-lg card-hover">
+                                    <div
+                                        key={i}
+                                        className="bg-gray-800 rounded-xl p-6 border border-gray-700 shadow-lg card-hover cursor-pointer"
+                                        onClick={() => {
+                                            setSelectedServer(server);
+                                            viewServerLogs(server.server_id);
+                                        }}
+                                    >
                                         <div className="flex items-start justify-between mb-4">
                                             <div>
                                                 <h3 className="text-xl font-bold text-white mb-1">{server.server_name}</h3>
@@ -1292,6 +1429,124 @@ export default function GamingBlockDashboard() {
                                     </div>
                                 ))
                             )}
+                        </div>
+                    )}
+
+                    {/* Server Details Modal */}
+                    {selectedServer && (
+                        <div
+                            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto"
+                            onClick={() => {
+                                setSelectedServer(null);
+                                setServerLogs([]);
+                            }}
+                        >
+                            <div
+                                className="bg-gray-800 rounded-2xl border border-gray-700 shadow-2xl max-w-4xl w-full my-8 animate-fade-in max-h-[90vh] overflow-y-auto"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                {/* Header */}
+                                <div className="sticky top-0 z-10 bg-gradient-to-r from-blue-500 to-blue-600 rounded-t-2xl p-6">
+                                    <button
+                                        onClick={() => {
+                                            setSelectedServer(null);
+                                            setServerLogs([]);
+                                        }}
+                                        className="absolute top-4 right-4 text-white hover:bg-white/20 p-2 rounded-lg transition"
+                                    >
+                                        <X size={20} />
+                                    </button>
+                                    <div className="flex items-center gap-4">
+                                        <Server size={48} className="text-white" />
+                                        <div>
+                                            <h2 className="text-2xl font-bold text-white">{selectedServer.server_name}</h2>
+                                            <p className="text-blue-100 text-sm font-mono">{selectedServer.server_id}</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Body */}
+                                <div className="p-6 space-y-4">
+                                    {/* Action Buttons */}
+                                    <div className="bg-gray-700 rounded-lg p-4">
+                                        <p className="text-gray-400 text-sm mb-3">Server Actions</p>
+                                        <div className="flex gap-3">
+                                            <button
+                                                onClick={() => performServerAction(selectedServer.server_id, 'start_server')}
+                                                className="flex-1 bg-green-500 hover:bg-green-600 text-white px-4 py-3 rounded-lg font-semibold transition"
+                                            >
+                                                ▶ Start
+                                            </button>
+                                            <button
+                                                onClick={() => performServerAction(selectedServer.server_id, 'stop_server')}
+                                                className="flex-1 bg-red-500 hover:bg-red-600 text-white px-4 py-3 rounded-lg font-semibold transition"
+                                            >
+                                                ■ Stop
+                                            </button>
+                                            <button
+                                                onClick={() => performServerAction(selectedServer.server_id, 'restart_server')}
+                                                className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-3 rounded-lg font-semibold transition"
+                                            >
+                                                ↻ Restart
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Server Info */}
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="bg-gray-700 rounded-lg p-4">
+                                            <p className="text-gray-400 text-sm mb-1">Type</p>
+                                            <p className="text-white font-semibold">{selectedServer.type}</p>
+                                        </div>
+                                        <div className="bg-gray-700 rounded-lg p-4">
+                                            <p className="text-gray-400 text-sm mb-1">Port</p>
+                                            <p className="text-white font-semibold font-mono">{selectedServer.server_port}</p>
+                                        </div>
+                                        <div className="bg-gray-700 rounded-lg p-4">
+                                            <p className="text-gray-400 text-sm mb-1">Executable</p>
+                                            <p className="text-white font-semibold text-sm">{selectedServer.executable}</p>
+                                        </div>
+                                        <div className="bg-gray-700 rounded-lg p-4">
+                                            <p className="text-gray-400 text-sm mb-1">Auto Start</p>
+                                            <p className={`font-semibold ${selectedServer.auto_start ? 'text-green-400' : 'text-gray-400'}`}>
+                                                {selectedServer.auto_start ? 'Enabled' : 'Disabled'}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* Server Logs */}
+                                    <div className="bg-gray-900 rounded-lg p-4">
+                                        <div className="flex items-center justify-between mb-3">
+                                            <p className="text-gray-400 text-sm font-semibold">Server Logs</p>
+                                            <button
+                                                onClick={() => viewServerLogs(selectedServer.server_id)}
+                                                className="text-blue-400 hover:text-blue-300 text-sm"
+                                            >
+                                                Refresh
+                                            </button>
+                                        </div>
+                                        <div className="bg-black rounded p-3 max-h-96 overflow-y-auto font-mono text-xs">
+                                            {serverLogs.length === 0 ? (
+                                                <p className="text-gray-500 text-center py-4">Loading logs...</p>
+                                            ) : (
+                                                serverLogs.map((log, i) => (
+                                                    <div
+                                                        key={i}
+                                                        className={`py-0.5 ${
+                                                            log.includes('[ERROR]') || log.includes('ERROR') ? 'text-red-400' :
+                                                                log.includes('[WARN]') || log.includes('WARN') ? 'text-yellow-400' :
+                                                                    log.includes('[INFO]') || log.includes('INFO') ? 'text-green-400' :
+                                                                        'text-gray-300'
+                                                        }`}
+                                                    >
+                                                        {log}
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     )}
 

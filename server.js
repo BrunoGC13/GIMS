@@ -28,7 +28,7 @@ const {signToken} = require('./modules/middleware/signToken');
 const {authenticateToken} = require("./modules/middleware/authToken");
 const {postBug} = require("./modules/bugs/bugs");
 const {sendMessage, getMessages, deleteMessage} = require("./modules/staff/msg/msg");
-const {getLogs, getServers, getProxyServers} = require("./modules/server/servers");
+const {getLogs, getServers, getProxyServers, serverAction} = require("./modules/server/servers");
 const {createSuspection, getSuspections, editSuspection, deleteSuspection} = require("./modules/suspections/suspections");
 const {createUser} = require("./modules/staff/users/users");
 const {createConstructor} = require("./modules/vars/constructor");
@@ -488,8 +488,33 @@ app.get('/api/news/get', authenticateToken, checkPerms("newsView"), async (req, 
 })
 
 // === Servers ===
-app.get('/api/servers/logs/get', authenticateToken, checkPerms("serverLogsView"), param('id').isInt(), async (req, res) => {
-    const { id } = req.query;
+app.post('/api/servers/action/:action', authenticateToken, checkPerms('serverAction'), async (req, res) => {
+    const { action } = req.params;
+    const { id } = req.body;
+    if (!id || !action) {
+        let constructor = createConstructor(process.env.ERROR_VAR, 400, "Please include the needed variables!", undefined);
+        constructor.main['path'] = req.path;
+        return res.status(constructor.status).json(constructor);
+    }
+    try {
+        const result = await serverAction(id, action);
+        if (result.error) {
+            let internalServerError = await createConstructor(process.env.ERROR_VAR, 500, "Internal Server Error", undefined);
+            internalServerError.main['endpoint'] = req.path;
+            return res.status(internalServerError.status).json(internalServerError);
+        }
+        result.main['endpoint'] = req.path;
+        return res.json(result);
+    } catch (err) {
+        console.error(err);
+        let internalServerError = await createConstructor(process.env.ERROR_VAR, 500, "Internal Server Error", undefined);
+        internalServerError.main['endpoint'] = req.path;
+        return res.status(internalServerError.status).json(internalServerError);
+    }
+})
+
+app.get('/api/servers/logs/get/:id', authenticateToken, checkPerms("serverLogsView"), param('id').isInt(), async (req, res) => {
+    const { id } = req.params;
     try {
         const result = await getLogs(id);
         if (result.error === true) {
