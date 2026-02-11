@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GamingBlock - Support Portal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes fade-in {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes slide-down {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+            animation: fade-in 0.3s ease-out;
+        }
+        .animate-slide-down {
+            animation: slide-down 0.3s ease-out;
+        }
+        .card-hover {
+            transition: all 0.3s ease;
+        }
+        .card-hover:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 min-h-screen">
+<div class="flex min-h-screen">
+    <!-- Sidebar -->
+    <div id="sidebar" class="w-64 bg-gray-800 border-r border-gray-700 transition-all duration-300 flex flex-col">
+        <div class="p-4 border-b border-gray-700 flex items-center justify-between">
+            <h2 id="sidebar-title" class="text-xl font-bold text-white">Support Portal</h2>
+            <button onclick="toggleSidebar()" class="p-2 hover:bg-gray-700 rounded-lg transition">
+                <svg id="sidebar-icon-close" class="text-white" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+                <svg id="sidebar-icon-menu" class="text-white hidden" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="3" y1="12" x2="21" y2="12"></line>
+                    <line x1="3" y1="6" x2="21" y2="6"></line>
+                    <line x1="3" y1="18" x2="21" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+
+        <nav class="flex-1 p-4 space-y-2">
+            <button onclick="setActiveTab('home')" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-lg transition bg-green-500 text-white shadow-lg" data-tab="home">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                    <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                </svg>
+                <span class="nav-label">Home</span>
+            </button>
+
+            <button onclick="setActiveTab('news')" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-lg transition text-white hover:bg-gray-700" data-tab="news">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"></path>
+                    <path d="M18 14h-8"></path>
+                    <path d="M15 18h-5"></path>
+                    <path d="M10 6h8v4h-8V6Z"></path>
+                </svg>
+                <span class="nav-label">News</span>
+            </button>
+
+            <button onclick="setActiveTab('bug-report')" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-lg transition text-white hover:bg-gray-700" data-tab="bug-report">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="m8 2 1.88 1.88"></path>
+                    <path d="M14.12 3.88 16 2"></path>
+                    <path d="M9 7.13v-1a3.003 3.003 0 1 1 6 0v1"></path>
+                    <path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6"></path>
+                    <path d="M12 20v-9"></path>
+                    <path d="M6.53 9C4.6 8.8 3 7.1 3 5"></path>
+                    <path d="M6 13H2"></path>
+                    <path d="M3 21c0-2.1 1.7-3.9 3.8-4"></path>
+                    <path d="M20.97 5c0 2.1-1.6 3.8-3.5 4"></path>
+                    <path d="M22 13h-4"></path>
+                    <path d="M17.2 17c2.1.1 3.8 1.9 3.8 4"></path>
+                </svg>
+                <span class="nav-label">Report Bug</span>
+            </button>
+
+            <button onclick="setActiveTab('player-report')" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-lg transition text-white hover:bg-gray-700" data-tab="player-report">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path>
+                    <path d="M12 9v4"></path>
+                    <path d="M12 17h.01"></path>
+                </svg>
+                <span class="nav-label">Report Player</span>
+            </button>
+
+            <button onclick="setActiveTab('status')" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-lg transition text-white hover:bg-gray-700" data-tab="status">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect width="20" height="8" x="2" y="2" rx="2" ry="2"></rect>
+                    <rect width="20" height="8" x="2" y="14" rx="2" ry="2"></rect>
+                    <line x1="6" x2="6.01" y1="6" y2="6"></line>
+                    <line x1="6" x2="6.01" y1="18" y2="18"></line>
+                </svg>
+                <span class="nav-label">Server Status</span>
+            </button>
+        </nav>
+
+        <div class="p-4 border-t border-gray-700">
+            <div class="text-center text-gray-400 text-sm">
+                <p id="footer-brand" class="mb-2 font-bold text-white">GamingBlock</p>
+                <p id="footer-subtitle" class="text-xs">Support Center</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="flex-1 overflow-auto">
+        <div class="p-8">
+            <h1 class="text-3xl font-bold text-white mb-8 flex items-center gap-3">
+                <span id="page-title">Home</span>
+                <svg class="text-gray-600" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="m9 18 6-6-6-6"></path>
+                </svg>
+            </h1>
+
+            <!-- Home Tab -->
+            <div id="tab-home" class="tab-content animate-fade-in">
+                <div class="space-y-6">
+                    <!-- Welcome Section -->
+                    <div class="bg-gradient-to-r from-green-500 to-green-600 rounded-xl p-8 text-white shadow-lg">
+                        <h2 class="text-3xl font-bold mb-3">Welcome to GamingBlock Support</h2>
+                        <p class="text-green-100 text-lg">Need help? You're in the right place!</p>
+                    </div>
+
+                    <!-- Quick Actions -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <div onclick="setActiveTab('news')" class="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-6 text-white shadow-lg card-hover cursor-pointer">
+                            <svg width="32" height="32" class="mb-4 opacity-80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"></path>
+                                <path d="M18 14h-8"></path>
+                                <path d="M15 18h-5"></path>
+                                <path d="M10 6h8v4h-8V6Z"></path>
+                            </svg>
+                            <h3 class="text-xl font-bold mb-2">Latest News</h3>
+                            <p class="text-blue-100 text-sm">Check out what's new</p>
+                        </div>
+
+                        <div onclick="setActiveTab('bug-report')" class="bg-gradient-to-br from-red-500 to-red-600 rounded-xl p-6 text-white shadow-lg card-hover cursor-pointer">
+                            <svg width="32" height="32" class="mb-4 opacity-80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="m8 2 1.88 1.88"></path>
+                                <path d="M14.12 3.88 16 2"></path>
+                                <path d="M9 7.13v-1a3.003 3.003 0 1 1 6 0v1"></path>
+                                <path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6"></path>
+                                <path d="M12 20v-9"></path>
+                                <path d="M6.53 9C4.6 8.8 3 7.1 3 5"></path>
+                                <path d="M6 13H2"></path>
+                                <path d="M3 21c0-2.1 1.7-3.9 3.8-4"></path>
+                                <path d="M20.97 5c0 2.1-1.6 3.8-3.5 4"></path>
+                                <path d="M22 13h-4"></path>
+                                <path d="M17.2 17c2.1.1 3.8 1.9 3.8 4"></path>
+                            </svg>
+                            <h3 class="text-xl font-bold mb-2">Report Bug</h3>
+                            <p class="text-red-100 text-sm">Found an issue?</p>
+                        </div>
+
+                        <div onclick="setActiveTab('player-report')" class="bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-xl p-6 text-white shadow-lg card-hover cursor-pointer">
+                            <svg width="32" height="32" class="mb-4 opacity-80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path>
+                                <path d="M12 9v4"></path>
+                                <path d="M12 17h.01"></path>
+                            </svg>
+                            <h3 class="text-xl font-bold mb-2">Report Player</h3>
+                            <p class="text-yellow-100 text-sm">Report violations</p>
+                        </div>
+
+                        <div onclick="setActiveTab('status')" class="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-6 text-white shadow-lg card-hover cursor-pointer">
+                            <svg width="32" height="32" class="mb-4 opacity-80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect width="20" height="8" x="2" y="2" rx="2" ry="2"></rect>
+                                <rect width="20" height="8" x="2" y="14" rx="2" ry="2"></rect>
+                                <line x1="6" x2="6.01" y1="6" y2="6"></line>
+                                <line x1="6" x2="6.01" y1="18" y2="18"></line>
+                            </svg>
+                            <h3 class="text-xl font-bold mb-2">Server Status</h3>
+                            <p class="text-purple-100 text-sm">Check server info</p>
+                        </div>
+                    </div>
+
+                    <!-- Info Section -->
+                    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+                        <h3 class="text-xl font-bold text-white mb-4">How Can We Help?</h3>
+                        <div class="space-y-3 text-gray-300">
+                            <p>• <strong>Report Bugs:</strong> Found a glitch or bug? Let us know so we can fix it!</p>
+                            <p>• <strong>Report Players:</strong> Encountered rule-breaking behavior? Submit a player report.</p>
+                            <p>• <strong>Stay Updated:</strong> Check our news section for the latest updates and announcements.</p>
+                            <p>• <strong>Server Status:</strong> View information about our Minecraft servers.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- News Tab -->
+            <div id="tab-news" class="tab-content hidden">
+                <div class="space-y-6 animate-fade-in">
+                    <div id="news-loading" class="bg-gray-800 rounded-xl p-12 border border-gray-700 text-center">
+                        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500 mx-auto"></div>
+                        <p class="text-gray-400 mt-4">Loading news...</p>
+                    </div>
+                    <div id="news-empty" class="bg-gray-800 rounded-xl p-12 border border-gray-700 text-center hidden">
+                        <svg width="48" height="48" class="mx-auto mb-4 text-gray-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"></path>
+                            <path d="M18 14h-8"></path>
+                            <path d="M15 18h-5"></path>
+                            <path d="M10 6h8v4h-8V6Z"></path>
+                        </svg>
+                        <p class="text-gray-400">No news available at the moment</p>
+                    </div>
+                    <div id="news-container"></div>
+                </div>
+            </div>
+
+            <!-- Bug Report Tab -->
+            <div id="tab-bug-report" class="tab-content hidden">
+                <div class="space-y-6 animate-fade-in">
+                    <div id="bug-status" class="hidden"></div>
+
+                    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700 shadow-lg">
+                        <h3 class="text-xl font-bold text-white mb-4">Report a Bug</h3>
+                        <p class="text-gray-400 mb-6">Found a bug? Help us improve by reporting it!</p>
+
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">Bug Title</label>
+                                <input
+                                        type="text"
+                                        id="bug-name"
+                                        placeholder="Brief description of the bug"
+                                        class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500 transition"
+                                />
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">Bug Description</label>
+                                <textarea
+                                        id="bug-content"
+                                        placeholder="Detailed description of the bug and how to reproduce it"
+                                        class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 h-32 focus:outline-none focus:ring-2 focus:ring-red-500 transition resize-none"
+                                ></textarea>
+                            </div>
+
+                            <button
+                                    onclick="submitBug()"
+                                    class="bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-lg font-semibold transition flex items-center gap-2 shadow-lg hover:shadow-xl"
+                            >
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="m22 2-7 20-4-9-9-4Z"></path>
+                                    <path d="M22 2 11 13"></path>
+                                </svg>
+                                Submit Bug Report
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4">
+                        <p class="text-blue-300 text-sm">
+                            <strong>💡 Tip:</strong> Please provide as much detail as possible, including steps to reproduce the bug. This helps us fix it faster!
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Player Report Tab -->
+            <div id="tab-player-report" class="tab-content hidden">
+                <div class="space-y-6 animate-fade-in">
+                    <div id="report-status" class="hidden"></div>
+
+                    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700 shadow-lg">
+                        <h3 class="text-xl font-bold text-white mb-4">Report a Player</h3>
+                        <p class="text-gray-400 mb-6">Report rule violations to help keep our community safe.</p>
+
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">Player Name</label>
+                                <input
+                                        type="text"
+                                        id="report-player"
+                                        placeholder="Enter the player's username"
+                                        class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-yellow-500 transition"
+                                />
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">Report Details</label>
+                                <textarea
+                                        id="report-content"
+                                        placeholder="Describe the violation (including date, time, and what happened)"
+                                        class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 h-32 focus:outline-none focus:ring-2 focus:ring-yellow-500 transition resize-none"
+                                ></textarea>
+                            </div>
+
+                            <button
+                                    onclick="submitReport()"
+                                    class="bg-yellow-500 hover:bg-yellow-600 text-white px-6 py-3 rounded-lg font-semibold transition flex items-center gap-2 shadow-lg hover:shadow-xl"
+                            >
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="m22 2-7 20-4-9-9-4Z"></path>
+                                    <path d="M22 2 11 13"></path>
+                                </svg>
+                                Submit Player Report
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4">
+                        <p class="text-yellow-300 text-sm">
+                            <strong>⚠️ Note:</strong> False reports may result in action against your account. Only submit legitimate reports of rule violations.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Server Status Tab -->
+            <div id="tab-status" class="tab-content hidden">
+                <div class="space-y-6 animate-fade-in">
+                    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700 shadow-lg">
+                        <h3 class="text-xl font-bold text-white mb-6">Server Information</h3>
+
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div class="bg-gradient-to-br from-gray-700 to-gray-750 rounded-lg p-6 border border-gray-600">
+                                <p class="text-gray-400 text-sm mb-2">Server IP</p>
+                                <p class="text-white font-bold text-2xl font-mono">GamingBlock.de</p>
+                                <button
+                                        onclick="copyIP()"
+                                        class="mt-3 text-green-400 hover:text-green-300 text-sm font-medium transition"
+                                >
+                                    Click to copy
+                                </button>
+                            </div>
+
+                            <div class="bg-gradient-to-br from-gray-700 to-gray-750 rounded-lg p-6 border border-gray-600">
+                                <p class="text-gray-400 text-sm mb-2">Bedrock Port</p>
+                                <p class="text-white font-bold text-2xl font-mono">19132</p>
+                            </div>
+
+                            <div class="bg-gradient-to-br from-gray-700 to-gray-750 rounded-lg p-6 border border-gray-600">
+                                <p class="text-gray-400 text-sm mb-2">Supported Versions</p>
+                                <p class="text-white font-bold text-xl">1.20 - 1.21</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-green-500/10 border border-green-500/20 rounded-xl p-4 flex items-center gap-3">
+                        <svg width="24" height="24" class="text-green-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"></path>
+                            <path d="m9 12 2 2 4-4"></path>
+                        </svg>
+                        <p class="text-green-300 text-sm">
+                            <strong>All systems operational</strong> - Join us on GamingBlock.de
+                        </p>
+                    </div>
+
+                    <!-- Additional Server Info -->
+                    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+                        <h3 class="text-xl font-bold text-white mb-4">Our Servers</h3>
+                        <div class="space-y-3 text-gray-300">
+                            <div class="flex items-center gap-3">
+                                <div class="w-3 h-3 bg-green-500 rounded-full"></div>
+                                <p><strong>VanillaSMP:</strong> Pure vanilla Minecraft experience</p>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <div class="w-3 h-3 bg-green-500 rounded-full"></div>
+                                <p><strong>PowerSMP:</strong> Custom powers and unique gameplay</p>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <div class="w-3 h-3 bg-green-500 rounded-full"></div>
+                                <p><strong>Practice:</strong> PvP practice server (EU)</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const API_BASE = '/api';
+    let sidebarOpen = true;
+    let activeTab = 'home';
+
+    // Toggle Sidebar
+    function toggleSidebar() {
+        sidebarOpen = !sidebarOpen;
+        const sidebar = document.getElementById('sidebar');
+        const sidebarTitle = document.getElementById('sidebar-title');
+        const footerBrand = document.getElementById('footer-brand');
+        const footerSubtitle = document.getElementById('footer-subtitle');
+        const navLabels = document.querySelectorAll('.nav-label');
+        const iconClose = document.getElementById('sidebar-icon-close');
+        const iconMenu = document.getElementById('sidebar-icon-menu');
+
+        if (sidebarOpen) {
+            sidebar.classList.remove('w-20');
+            sidebar.classList.add('w-64');
+            sidebarTitle.classList.remove('hidden');
+            footerBrand.classList.remove('hidden');
+            footerSubtitle.classList.remove('hidden');
+            navLabels.forEach(label => label.classList.remove('hidden'));
+            iconClose.classList.remove('hidden');
+            iconMenu.classList.add('hidden');
+        } else {
+            sidebar.classList.remove('w-64');
+            sidebar.classList.add('w-20');
+            sidebarTitle.classList.add('hidden');
+            footerBrand.classList.add('hidden');
+            footerSubtitle.classList.add('hidden');
+            navLabels.forEach(label => label.classList.add('hidden'));
+            iconClose.classList.add('hidden');
+            iconMenu.classList.remove('hidden');
+        }
+    }
+
+    // Set Active Tab
+    function setActiveTab(tab) {
+        activeTab = tab;
+
+        // Update navigation
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.classList.remove('bg-green-500', 'text-white', 'shadow-lg');
+            item.classList.add('text-white', 'hover:bg-gray-700');
+        });
+        document.querySelector(`[data-tab="${tab}"]`).classList.add('bg-green-500', 'text-white', 'shadow-lg');
+        document.querySelector(`[data-tab="${tab}"]`).classList.remove('hover:bg-gray-700');
+
+        // Update content
+        document.querySelectorAll('.tab-content').forEach(content => {
+            content.classList.add('hidden');
+        });
+        document.getElementById(`tab-${tab}`).classList.remove('hidden');
+
+        // Update page title
+        const titles = {
+            'home': 'Home',
+            'news': 'News',
+            'bug-report': 'Report Bug',
+            'player-report': 'Report Player',
+            'status': 'Server Status'
+        };
+        document.getElementById('page-title').textContent = titles[tab];
+
+        // Load news if switching to news tab
+        if (tab === 'news') {
+            loadNews();
+        }
+    }
+
+    // Load News
+    async function loadNews() {
+        const loading = document.getElementById('news-loading');
+        const empty = document.getElementById('news-empty');
+        const container = document.getElementById('news-container');
+
+        loading.classList.remove('hidden');
+        empty.classList.add('hidden');
+        container.innerHTML = '';
+
+        try {
+            const response = await fetch(`${API_BASE}/news/get`);
+            const data = await response.json();
+            const news = data.data || [];
+
+            loading.classList.add('hidden');
+
+            if (news.length === 0) {
+                empty.classList.remove('hidden');
+            } else {
+                news.forEach(item => {
+                    const newsCard = document.createElement('div');
+                    newsCard.className = 'bg-gray-800 rounded-xl p-6 border border-gray-700 shadow-lg card-hover';
+
+                    const date = new Date(item.creation || item.date);
+                    const formattedDate = date.toLocaleDateString('de-DE', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                    });
+
+                    newsCard.innerHTML = `
+                            <div class="flex items-start justify-between mb-3">
+                                <h3 class="text-2xl font-bold text-white">${item.title || 'Latest Update'}</h3>
+                                <span class="bg-green-500/20 text-green-300 px-3 py-1 rounded-full text-sm font-semibold">
+                                    Level ${item.level}
+                                </span>
+                            </div>
+                            <p class="text-gray-300 mb-4 leading-relaxed">${item.msg}</p>
+                            <div class="flex items-center justify-between text-sm text-gray-500 border-t border-gray-700 pt-3">
+                                <span>By <span class="text-gray-400 font-medium">${item.author}</span></span>
+                                <span>${formattedDate}</span>
+                            </div>
+                        `;
+                    container.appendChild(newsCard);
+                });
+            }
+        } catch (err) {
+            console.error('Failed to load news:', err);
+            loading.classList.add('hidden');
+            empty.classList.remove('hidden');
+        }
+    }
+
+    // Submit Bug Report
+    async function submitBug() {
+        const name = document.getElementById('bug-name').value;
+        const content = document.getElementById('bug-content').value;
+        const statusDiv = document.getElementById('bug-status');
+
+        if (!name || !content) {
+            showStatus(statusDiv, false, 'Please fill in all fields');
+            return;
+        }
+
+        try {
+            const response = await fetch(`${API_BASE}/bugs/create/public`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, content })
+            });
+
+            if (response.ok) {
+                showStatus(statusDiv, true, 'Bug report submitted successfully! Thank you for your feedback.');
+                document.getElementById('bug-name').value = '';
+                document.getElementById('bug-content').value = '';
+            } else {
+                showStatus(statusDiv, false, 'Failed to submit bug report. Please try again.');
+            }
+        } catch (err) {
+            console.error('Failed to submit bug:', err);
+            showStatus(statusDiv, false, 'Error submitting bug report');
+        }
+    }
+
+    // Submit Player Report
+    async function submitReport() {
+        const player = document.getElementById('report-player').value;
+        const content = document.getElementById('report-content').value;
+        const statusDiv = document.getElementById('report-status');
+
+        if (!player || !content) {
+            showStatus(statusDiv, false, 'Please fill in all fields');
+            return;
+        }
+
+        try {
+            const response = await fetch(`${API_BASE}/reports/create/public`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ player, content })
+            });
+
+            if (response.ok) {
+                showStatus(statusDiv, true, 'Player report submitted successfully! Our team will review it.');
+                document.getElementById('report-player').value = '';
+                document.getElementById('report-content').value = '';
+            } else {
+                showStatus(statusDiv, false, 'Failed to submit report. Please try again.');
+            }
+        } catch (err) {
+            console.error('Failed to submit report:', err);
+            showStatus(statusDiv, false, 'Error submitting report');
+        }
+    }
+
+    // Show Status Message
+    function showStatus(element, success, message) {
+        const bgClass = success ? 'bg-green-500/10 border-green-500/20' : 'bg-red-500/10 border-red-500/20';
+        const textClass = success ? 'text-green-300' : 'text-red-300';
+        const iconClass = success ? 'text-green-400' : 'text-red-400';
+
+        const icon = success
+            ? '<path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"></path><path d="m9 12 2 2 4-4"></path>'
+            : '<path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"></path><path d="m15 9-6 6"></path><path d="m9 9 6 6"></path>';
+
+        element.className = `rounded-xl p-4 flex items-center gap-3 animate-slide-down border ${bgClass}`;
+        element.innerHTML = `
+                <svg width="24" height="24" class="${iconClass}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    ${icon}
+                </svg>
+                <p class="${textClass}">${message}</p>
+            `;
+        element.classList.remove('hidden');
+
+        setTimeout(() => {
+            element.classList.add('hidden');
+        }, success ? 5000 : 3000);
+    }
+
+    // Copy IP to Clipboard
+    function copyIP() {
+        navigator.clipboard.writeText('GamingBlock.de').then(() => {
+            alert('IP copied to clipboard!');
+        });
+    }
+
+    // Initialize
+    window.addEventListener('load', () => {
+        setActiveTab('home');
+    });
+</script>
+</body>
+</html>

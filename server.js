@@ -194,7 +194,7 @@ app.post('/api/staff/users/login', async (req, res) => {
 });
 
 // === Bugs ===
-app.get('/api/bugs/get', authenticateToken, checkPerms("bugView"), async (req, res) => {
+app.get('/api/bugs/get', async (req, res) => {
     try {
         const result = await bugs.getBugs();
 
@@ -214,7 +214,7 @@ app.get('/api/bugs/get', authenticateToken, checkPerms("bugView"), async (req, r
     }
 });
 
-app.post('/api/bugs/create', authenticateToken, checkPerms("bugCreation"), async (req, res) => {
+app.post('/api/bugs/create', async (req, res) => {
     const { name, content } = req.body;
     if (!name || !content) {
         missingBugCreationVariables.main['path'] = req.path;
@@ -257,7 +257,7 @@ app.delete('/api/bugs/delete', authenticateToken, checkPerms("bugDeletion"), asy
 });
 
 // === Reports ===
-app.post('/api/reports/create', authenticateToken, checkPerms("reportCreation"), async (req, res) => {
+app.post('/api/reports/create', async (req, res) => {
     const { player, content } = req.body;
     if (!player || !content) {
         missingReportCreationVariables.main['path'] = req.path;
@@ -282,7 +282,7 @@ app.post('/api/reports/create', authenticateToken, checkPerms("reportCreation"),
     }
 });
 
-app.get('/api/reports/get', authenticateToken, checkPerms("reportView"), async (req, res) => {
+app.get('/api/reports/get', async (req, res) => {
     const result = await reports.getReports();
     if (result.error) {
         internalServerError.main['path'] = req.path;
@@ -469,7 +469,7 @@ app.delete('/api/news/delete', authenticateToken, checkPerms("newsDeletion"), as
     }
 })
 
-app.get('/api/news/get', authenticateToken, checkPerms("newsView"), async (req, res) => {
+app.get('/api/news/get', async (req, res) => {
     try {
         const result = await news.getNews();
         if (result.error === true) {
@@ -810,6 +810,7 @@ app.post('/api/player/send/:name', authenticateToken, checkPerms("playerSending"
 });
 
 app.use(express.static(path.join(__dirname, 'public/staff/dist')));
+app.use('/support', express.static(path.join(__dirname, 'public/support')));
 
 // === Start ===
 app.listen(port, () => {
