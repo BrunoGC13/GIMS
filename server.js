@@ -34,6 +34,8 @@ const {createUser} = require("./modules/staff/users/users");
 const {createConstructor} = require("./modules/vars/constructor");
 const {createRole, deleteRole, editRole, getRoles} = require("./modules/staff/permissions");
 const {checkPerms} = require("./modules/middleware/permissions");
+const {logAction, logRequest} = require("./modules/middleware/logging");
+const pool = require("./modules/db/pool");
 const {getLivePlayers, getPlayer, sendPlayerToServer} = require("./modules/players/players");
 const { body, param, validationResult } = require('express-validator');
 
@@ -59,7 +61,7 @@ app.get('/api/test', (req, res) => {
 })
 
 // === Users ===
-app.post('/api/staff/users/create', authenticateToken, checkPerms("userCreation"), async (req, res) => {
+app.post('/api/staff/users/create', authenticateToken, checkPerms("userCreation"), logAction("create user", req => req.body.username), async (req, res) => {
     const { username, password, permissions, ign } = req.body;
 
     if (!username || !password || !permissions || !ign) {
@@ -91,7 +93,7 @@ app.post('/api/staff/users/create', authenticateToken, checkPerms("userCreation"
     }
 });
 
-app.delete('/api/staff/users/delete', authenticateToken, checkPerms("userDeletion"), async (req, res) => {
+app.delete('/api/staff/users/delete', authenticateToken, checkPerms("userDeletion"), logAction("delete user", req => req.user.username), async (req, res) => {
     const { username } = req.user;
     if (!username) {
         missingUsernameErasementVariable.main['endpoint'] = req.path;
@@ -116,7 +118,7 @@ app.delete('/api/staff/users/delete', authenticateToken, checkPerms("userDeletio
     }
 });
 
-app.get('/api/staff/users/get', authenticateToken, checkPerms("userView"), async (req, res) => {
+app.get('/api/staff/users/get', authenticateToken, checkPerms("userView"), logAction("view users"), async (req, res) => {
     try {
         const result = await users.getUsers();
 
@@ -136,7 +138,7 @@ app.get('/api/staff/users/get', authenticateToken, checkPerms("userView"), async
     }
 });
 
-app.get('/api/staff/users/get/:name', authenticateToken, checkPerms("userView"), async (req, res) => {
+app.get('/api/staff/users/get/:name', authenticateToken, checkPerms("userView"), logAction("view user", req => req.params.name), async (req, res) => {
     const { name } = req.params;
     try {
         const result = await users.getUsers();
@@ -158,7 +160,7 @@ app.get('/api/staff/users/get/:name', authenticateToken, checkPerms("userView"),
     }
 });
 
-app.post('/api/staff/users/login', async (req, res) => {
+app.post('/api/staff/users/login', logAction("login", req => req.body.username), async (req, res) => {
     const { username, password } = req.body;
 
     if (!username || !password) {
@@ -194,7 +196,7 @@ app.post('/api/staff/users/login', async (req, res) => {
 });
 
 // === Bugs ===
-app.get('/api/bugs/get', async (req, res) => {
+app.get('/api/bugs/get', logRequest, async (req, res) => {
     try {
         const result = await bugs.getBugs();
 
@@ -214,7 +216,7 @@ app.get('/api/bugs/get', async (req, res) => {
     }
 });
 
-app.post('/api/bugs/create', async (req, res) => {
+app.post('/api/bugs/create', logAction("create bug", req => req.body.name), async (req, res) => {
     const { name, content } = req.body;
     if (!name || !content) {
         missingBugCreationVariables.main['path'] = req.path;
@@ -231,7 +233,7 @@ app.post('/api/bugs/create', async (req, res) => {
     return res.json(result);
 })
 
-app.delete('/api/bugs/delete', authenticateToken, checkPerms("bugDeletion"), async (req, res) => {
+app.delete('/api/bugs/delete', authenticateToken, checkPerms("bugDeletion"), logAction("delete bug", req => req.body.name), async (req, res) => {
     const { name } = req.body;
     if (!name) {
         missingBugErasementVariables.main['endpoint'] = req.path;
@@ -257,7 +259,7 @@ app.delete('/api/bugs/delete', authenticateToken, checkPerms("bugDeletion"), asy
 });
 
 // === Reports ===
-app.post('/api/reports/create', async (req, res) => {
+app.post('/api/reports/create', logAction("create report", req => req.body.player), async (req, res) => {
     const { player, content } = req.body;
     if (!player || !content) {
         missingReportCreationVariables.main['path'] = req.path;
@@ -282,7 +284,7 @@ app.post('/api/reports/create', async (req, res) => {
     }
 });
 
-app.get('/api/reports/get', async (req, res) => {
+app.get('/api/reports/get', logRequest, async (req, res) => {
     const result = await reports.getReports();
     if (result.error) {
         internalServerError.main['path'] = req.path;
@@ -294,7 +296,7 @@ app.get('/api/reports/get', async (req, res) => {
     return res.json(gotReportsSuccess);
 })
 
-app.delete('/api/reports/delete', authenticateToken, checkPerms("reportDeletion"), async (req, res) => {
+app.delete('/api/reports/delete', authenticateToken, checkPerms("reportDeletion"), logAction("delete report", req => req.body.player), async (req, res) => {
     const { player } = req.body;
     if (!player) {
         missingReportCreationVariables.main['endpoint'] = req.path;
@@ -320,7 +322,7 @@ app.delete('/api/reports/delete', authenticateToken, checkPerms("reportDeletion"
 });
 
 // === Messages ===
-app.post('/api/msg/send', authenticateToken, checkPerms("msgCreation"), async (req, res) => {
+app.post('/api/msg/send', authenticateToken, checkPerms("msgCreation"), logAction("send message"), async (req, res) => {
     const { username } = req.user;
     const { msg } = req.body;
     if (!username) {
@@ -344,7 +346,7 @@ app.post('/api/msg/send', authenticateToken, checkPerms("msgCreation"), async (r
     }
 })
 
-app.delete('/api/msg/delete', authenticateToken, checkPerms("msgDeletion"), async (req, res) => {
+app.delete('/api/msg/delete', authenticateToken, checkPerms("msgDeletion"), logAction("delete message", req => req.body.id), async (req, res) => {
     const { username } = req.user;
     const { id } = req.body;
     if (!username) {
@@ -368,7 +370,7 @@ app.delete('/api/msg/delete', authenticateToken, checkPerms("msgDeletion"), asyn
     }
 })
 
-app.get('/api/msg/get', authenticateToken, checkPerms("msgView"), async (req, res) => {
+app.get('/api/msg/get', authenticateToken, checkPerms("msgView"), logAction("view messages"), async (req, res) => {
     try {
         const result = await getMessages();
         if (result.error === true) {
@@ -387,7 +389,7 @@ app.get('/api/msg/get', authenticateToken, checkPerms("msgView"), async (req, re
 })
 
 // === News ===
-app.post('/api/news/write', authenticateToken, checkPerms("newsCreation"), [body('title').isString().trim().isLength({ min: 1, max: 200 }).escape(), body('content').isString().trim().isLength({ min: 1, max: 5000 }).escape(), body('level').isInt({ min: 1, max: 5 })], async (req, res) => {
+app.post('/api/news/write', authenticateToken, checkPerms("newsCreation"), logAction("create news", req => req.body.title), [body('title').isString().trim().isLength({ min: 1, max: 200 }).escape(), body('content').isString().trim().isLength({ min: 1, max: 5000 }).escape(), body('level').isInt({ min: 1, max: 5 })], async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
         return res.status(400).json({ errors: errors.array() });
@@ -418,7 +420,7 @@ app.post('/api/news/write', authenticateToken, checkPerms("newsCreation"), [body
     }
 })
 
-app.put('/api/news/edit', authenticateToken, checkPerms("newsEdit"), async (req, res) => {
+app.put('/api/news/edit', authenticateToken, checkPerms("newsEdit"), logAction("edit news", req => req.body.title), async (req, res) => {
     const { username } = req.user;
     const { id, content, title, level } = req.body;
     if (!content || !title || !level) {
@@ -445,7 +447,7 @@ app.put('/api/news/edit', authenticateToken, checkPerms("newsEdit"), async (req,
     }
 })
 
-app.delete('/api/news/delete', authenticateToken, checkPerms("newsDeletion"), async (req, res) => {
+app.delete('/api/news/delete', authenticateToken, checkPerms("newsDeletion"), logAction("delete news", req => req.body.id), async (req, res) => {
     const { username } = req.user;
     const { id } = req.body;
     if (!id) {
@@ -469,7 +471,7 @@ app.delete('/api/news/delete', authenticateToken, checkPerms("newsDeletion"), as
     }
 })
 
-app.get('/api/news/get', async (req, res) => {
+app.get('/api/news/get', logRequest, async (req, res) => {
     try {
         const result = await news.getNews();
         if (result.error === true) {
@@ -488,7 +490,7 @@ app.get('/api/news/get', async (req, res) => {
 })
 
 // === Servers ===
-app.post('/api/servers/action/:action', authenticateToken, checkPerms('serverAction'), async (req, res) => {
+app.post('/api/servers/action/:action', authenticateToken, checkPerms('serverAction'), logAction("server action", req => `${req.params.action} on server ${req.body.id}`), async (req, res) => {
     const { action } = req.params;
     const { id } = req.body;
     if (!id || !action) {
@@ -513,7 +515,7 @@ app.post('/api/servers/action/:action', authenticateToken, checkPerms('serverAct
     }
 })
 
-app.get('/api/servers/logs/get/:id', authenticateToken, checkPerms("serverLogsView"), param('id').isInt(), async (req, res) => {
+app.get('/api/servers/logs/get/:id', authenticateToken, checkPerms("serverLogsView"), logAction("view server logs", req => `server ${req.params.id}`), param('id').isInt(), async (req, res) => {
     const { id } = req.params;
     try {
         const result = await getLogs(id);
@@ -532,7 +534,7 @@ app.get('/api/servers/logs/get/:id', authenticateToken, checkPerms("serverLogsVi
     }
 })
 
-app.get('/api/servers/get', authenticateToken, checkPerms("serverView"), async (req, res) => {
+app.get('/api/servers/get', authenticateToken, checkPerms("serverView"), logAction("view servers"), async (req, res) => {
     try {
         const result = await getServers();
         if (result.error === true) {
@@ -550,7 +552,7 @@ app.get('/api/servers/get', authenticateToken, checkPerms("serverView"), async (
     }
 })
 
-app.get('/api/servers/getProxy', authenticateToken, checkPerms("serverViewProxy"), async (req, res) => {
+app.get('/api/servers/getProxy', authenticateToken, checkPerms("serverViewProxy"), logAction("view proxy servers"), async (req, res) => {
     try {
         const result = await getProxyServers();
         if (result.error) {
@@ -568,8 +570,31 @@ app.get('/api/servers/getProxy', authenticateToken, checkPerms("serverViewProxy"
     }
 })
 
+// === Action Logs ===
+app.get('/api/logs/get',  async (req, res) => {
+    try {
+        const [logs] = await pool.query(
+            'SELECT * FROM logs ORDER BY timestamp DESC LIMIT 100'
+        );
+
+        let constructor = await createConstructor(
+            process.env.SUCCESS_VAR,
+            200,
+            "Got logs successfully",
+            logs
+        );
+        constructor.main['endpoint'] = req.path;
+        return res.json(constructor);
+    } catch (err) {
+        console.error(err);
+        let internalServerError = await createConstructor(process.env.ERROR_VAR, 500, "Internal Server Error", undefined);
+        internalServerError.main['endpoint'] = req.path;
+        return res.status(internalServerError.status).json(internalServerError);
+    }
+});
+
 // === Suspections ===
-app.post('/api/suspections/create', authenticateToken, checkPerms("suspectionCreation"), async (req, res) => {
+app.post('/api/suspections/create', authenticateToken, checkPerms("suspectionCreation"), logAction("create suspection", req => req.body.subject), async (req, res) => {
     const { title, description, subject } = req.body;
     if (!title || !description || !subject) {
         missingCreateSuspectionVariables.main['endpoint'] = req.path;
@@ -592,7 +617,7 @@ app.post('/api/suspections/create', authenticateToken, checkPerms("suspectionCre
     }
 })
 
-app.delete('/api/suspections/delete', authenticateToken, checkPerms("suspectionDeletion"), async (req, res) => {
+app.delete('/api/suspections/delete', authenticateToken, checkPerms("suspectionDeletion"), logAction("delete suspection", req => req.body.id), async (req, res) => {
     const { id } = req.body;
     if (!id) {
         missingDeleteSuspectionsVariables.main['endpoint'] = req.path;
@@ -614,7 +639,7 @@ app.delete('/api/suspections/delete', authenticateToken, checkPerms("suspectionD
     }
 })
 
-app.put('/api/suspections/edit', authenticateToken, checkPerms("suspectionEdit"), async (req, res) => {
+app.put('/api/suspections/edit', authenticateToken, checkPerms("suspectionEdit"), logAction("edit suspection", req => req.body.subject), async (req, res) => {
     const { id, title, description, subject } = req.body;
     if (!id || !title || !description || !subject) {
         missingSuspectionEditVariables.main['path'] = req.path;
@@ -636,7 +661,7 @@ app.put('/api/suspections/edit', authenticateToken, checkPerms("suspectionEdit")
     }
 })
 
-app.get('/api/suspections/get', authenticateToken, checkPerms("suspectionView"), async (req, res) => {
+app.get('/api/suspections/get', authenticateToken, checkPerms("suspectionView"), logAction("view suspections"), async (req, res) => {
     try {
         const result = await getSuspections();
         if (result.error === true) {
@@ -655,7 +680,7 @@ app.get('/api/suspections/get', authenticateToken, checkPerms("suspectionView"),
 })
 
 // === Roles ===
-app.post('/api/staff/roles/create', authenticateToken, checkPerms("roleCreation"), async (req, res) => {
+app.post('/api/staff/roles/create', authenticateToken, checkPerms("roleCreation"), logAction("create role", req => req.body.name), async (req, res) => {
     const { name, perms } = req.body;
     if (!name || !perms) {
         let constructor = await createConstructor(process.env.ERROR_VAR, 400, "Please include the needed body variables for creating a role!", undefined);
@@ -678,7 +703,7 @@ app.post('/api/staff/roles/create', authenticateToken, checkPerms("roleCreation"
     }
 })
 
-app.get('/api/roles/get', authenticateToken, checkPerms("roleView"), async (req, res) => {
+app.get('/api/roles/get', authenticateToken, checkPerms("roleView"), logAction("view roles"), async (req, res) => {
     try {
         const result = await getRoles();
         if (result.error) {
@@ -695,7 +720,7 @@ app.get('/api/roles/get', authenticateToken, checkPerms("roleView"), async (req,
     }
 })
 
-app.delete('/api/staff/roles/delete', authenticateToken, checkPerms("roleDeletion"), async (req, res) => {
+app.delete('/api/staff/roles/delete', authenticateToken, checkPerms("roleDeletion"), logAction("delete role", req => req.body.id), async (req, res) => {
     const { id } = req.body;
     if (!id) {
         let constructor = await createConstructor(process.env.ERROR_VAR, 400, "Please include the needed body variables for deleting a role!", undefined);
@@ -718,7 +743,7 @@ app.delete('/api/staff/roles/delete', authenticateToken, checkPerms("roleDeletio
     }
 })
 
-app.put('/api/staff/roles/edit', authenticateToken, checkPerms("roleEdit"), async (req, res) => {
+app.put('/api/staff/roles/edit', authenticateToken, checkPerms("roleEdit"), logAction("edit role", req => req.body.name), async (req, res) => {
     const { id, name, perms } = req.body;
     if (!id || !name || !perms) {
         let constructor = await createConstructor(process.env.ERROR_VAR, 400, "Please include the needed body variables for editing a role!", undefined);
@@ -742,7 +767,7 @@ app.put('/api/staff/roles/edit', authenticateToken, checkPerms("roleEdit"), asyn
 })
 
 // === Players ===
-app.get('/api/players/live', authenticateToken, checkPerms("livePlayersView"), async (req, res) => {
+app.get('/api/players/live', authenticateToken, checkPerms("livePlayersView"), logAction("view live players"), async (req, res) => {
     try {
         const result = await getLivePlayers();
         if (result.error) {
@@ -760,7 +785,7 @@ app.get('/api/players/live', authenticateToken, checkPerms("livePlayersView"), a
     }
 })
 
-app.get('/api/player/:name', authenticateToken, checkPerms("playerView"), async (req, res) => {
+app.get('/api/player/:name', authenticateToken, checkPerms("playerView"), logAction("view player", req => req.params.name), async (req, res) => {
     const { name } = req.params;
     try {
         const result = await getPlayer(name);
@@ -779,7 +804,7 @@ app.get('/api/player/:name', authenticateToken, checkPerms("playerView"), async 
     }
 })
 
-app.post('/api/player/send/:name', authenticateToken, checkPerms("playerSending"), async (req, res) => {
+app.post('/api/player/send/:name', authenticateToken, checkPerms("playerSending"), logAction("send player", req => `${req.params.name} to ${req.body.server}`), async (req, res) => {
     const { name } = req.params;
     const { server } = req.body;
     if (!name || !server) {
