@@ -13,12 +13,14 @@ const users = require('./modules/staff/users/users');
 const groups = require('./modules/staff/groups/groups');
 const login = require('./modules/staff/login');
 const news = require('./modules/news/news');
+const moderation = require('./modules/moderation/moderation');
 
 let {missingUserCreationVariables, internalServerError, missingUsernameErasementVariable, wrongPassword,
     missingBugCreationVariables, missingBugErasementVariables, missingReportCreationVariables, missingSendMSGVariables,
     missingDeleteMSGVariables, missingNewsCreationVariables, levelTooHigh, missingNewsDeletionVariables,
     unauthorizedAccess, missingNewsEditVariables, missingCreateSuspectionVariables, missingDeleteSuspectionsVariables,
-    missingSuspectionEditVariables
+    missingSuspectionEditVariables, missingKickPlayerVariables, missingBanPlayerVariables, missingTempbanPlayerVariables,
+    missingWarnPlayerVariables
 } = require("./modules/vars/error/errors");
 const {gotUsersSuccess, loginSuccess, gotBugsSuccess, createdReportSuccess, gotReportsSuccess, gotMessagesSuccess,
     gotNewsSuccess, gotLogsSuccess, gotServersSuccess, createdSuspectionSuccess, gotSuspectionsSuccess
@@ -824,6 +826,111 @@ app.post('/api/player/send/:name', authenticateToken, checkPerms("playerSending"
             internalServerError.main['endpoint'] = req.path;
             return res.status(internalServerError.status).json(internalServerError);
         }
+        result.main['endpoint'] = req.path;
+        return res.json(result);
+    } catch (err) {
+        console.error(err);
+        let internalServerError = await createConstructor(process.env.ERROR_VAR, 500, "Internal Server Error", undefined);
+        internalServerError.main['endpoint'] = req.path;
+        return res.status(internalServerError.status).json(internalServerError);
+    }
+});
+
+// === Moderation ===
+app.post('/api/moderation/kick', authenticateToken, checkPerms("playerKick"), logAction("kick player", req => req.body.player), async (req, res) => {
+    const { player, format, reason } = req.body;
+
+    if (!player) {
+        missingKickPlayerVariables.main['endpoint'] = req.path;
+        return res.status(400).json(missingKickPlayerVariables);
+    }
+
+    try {
+        const result = await moderation.kickPlayer(player, format, reason);
+
+        if (result.error === true) {
+            result.main['endpoint'] = req.path;
+            return res.status(result.status).json(result);
+        }
+
+        result.main['endpoint'] = req.path;
+        return res.json(result);
+    } catch (err) {
+        console.error(err);
+        let internalServerError = await createConstructor(process.env.ERROR_VAR, 500, "Internal Server Error", undefined);
+        internalServerError.main['endpoint'] = req.path;
+        return res.status(internalServerError.status).json(internalServerError);
+    }
+});
+
+app.post('/api/moderation/ban', authenticateToken, checkPerms("playerBan"), logAction("ban player", req => req.body.player), async (req, res) => {
+    const { player, format, reason } = req.body;
+
+    if (!player) {
+        missingBanPlayerVariables.main['endpoint'] = req.path;
+        return res.status(400).json(missingBanPlayerVariables);
+    }
+
+    try {
+        const result = await moderation.banPlayer(player, format, reason);
+
+        if (result.error === true) {
+            result.main['endpoint'] = req.path;
+            return res.status(result.status).json(result);
+        }
+
+        result.main['endpoint'] = req.path;
+        return res.json(result);
+    } catch (err) {
+        console.error(err);
+        let internalServerError = await createConstructor(process.env.ERROR_VAR, 500, "Internal Server Error", undefined);
+        internalServerError.main['endpoint'] = req.path;
+        return res.status(internalServerError.status).json(internalServerError);
+    }
+});
+
+app.post('/api/moderation/tempban', authenticateToken, checkPerms("playerTempban"), logAction("tempban player", req => `${req.body.player} for ${req.body.time}`), async (req, res) => {
+    const { player, time, format, reason } = req.body;
+
+    if (!player || !time) {
+        missingTempbanPlayerVariables.main['endpoint'] = req.path;
+        return res.status(400).json(missingTempbanPlayerVariables);
+    }
+
+    try {
+        const result = await moderation.tempbanPlayer(player, time, format, reason);
+
+        if (result.error === true) {
+            result.main['endpoint'] = req.path;
+            return res.status(result.status).json(result);
+        }
+
+        result.main['endpoint'] = req.path;
+        return res.json(result);
+    } catch (err) {
+        console.error(err);
+        let internalServerError = await createConstructor(process.env.ERROR_VAR, 500, "Internal Server Error", undefined);
+        internalServerError.main['endpoint'] = req.path;
+        return res.status(internalServerError.status).json(internalServerError);
+    }
+});
+
+app.post('/api/moderation/warn', authenticateToken, checkPerms("playerWarn"), logAction("warn player", req => req.body.player), async (req, res) => {
+    const { player, format, reason } = req.body;
+
+    if (!player) {
+        missingWarnPlayerVariables.main['endpoint'] = req.path;
+        return res.status(400).json(missingWarnPlayerVariables);
+    }
+
+    try {
+        const result = await moderation.warnPlayer(player, format, reason);
+
+        if (result.error === true) {
+            result.main['endpoint'] = req.path;
+            return res.status(result.status).json(result);
+        }
+
         result.main['endpoint'] = req.path;
         return res.json(result);
     } catch (err) {

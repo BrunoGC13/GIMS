@@ -200,6 +200,42 @@ let levelTooHigh = {
     }
 }
 
+let missingKickPlayerVariables = {
+    error: true,
+    success: false,
+    main: {
+        msg: "400 - Please include the player name for kick action!",
+        time: new Date()
+    }
+}
+
+let missingBanPlayerVariables = {
+    error: true,
+    success: false,
+    main: {
+        msg: "400 - Please include the player name for ban action!",
+        time: new Date()
+    }
+}
+
+let missingTempbanPlayerVariables = {
+    error: true,
+    success: false,
+    main: {
+        msg: "400 - Please include the player name and time for tempban action!",
+        time: new Date()
+    }
+}
+
+let missingWarnPlayerVariables = {
+    error: true,
+    success: false,
+    main: {
+        msg: "400 - Please include the player name for warn action!",
+        time: new Date()
+    }
+}
+
 // === Exporting ===
 module.exports = {
     missingUserCreationVariables,
@@ -223,5 +259,9 @@ module.exports = {
     missingNewsEditVariables,
     missingCreateSuspectionVariables,
     missingDeleteSuspectionsVariables,
-    missingSuspectionEditVariables
+    missingSuspectionEditVariables,
+    missingKickPlayerVariables,
+    missingBanPlayerVariables,
+    missingTempbanPlayerVariables,
+    missingWarnPlayerVariables
 }

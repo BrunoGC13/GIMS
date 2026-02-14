@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
     Home, Users, Bug, AlertTriangle, MessageSquare,
     Newspaper, Server, Shield, Menu, X, Plus, Edit,
-    Trash2, Eye, LogOut, Search, ChevronRight, Gamepad2
+    Trash2, Eye, LogOut, Search, ChevronRight, Gamepad2, ScrollText
 } from 'lucide-react';
 
 const API_BASE = '/api';
@@ -29,6 +29,10 @@ export default function GamingBlockDashboard() {
     const [selectedChatUser, setSelectedChatUser] = useState(null);
     const [selectedServer, setSelectedServer] = useState(null);
     const [serverLogs, setServerLogs] = useState([]);
+    const [actionLogs, setActionLogs] = useState([]);
+    const [selectedLog, setSelectedLog] = useState(null);
+    const [logSearch, setLogSearch] = useState('');
+    const [logFilter, setLogFilter] = useState('all'); // 'all', 'user', 'bug', 'player', 'moderation', etc.
 
     // Form states
     const [loginForm, setLoginForm] = useState({ username: '', password: '' });
@@ -46,6 +50,10 @@ export default function GamingBlockDashboard() {
     const [editingReport, setEditingReport] = useState(null);
     const [editingSuspection, setEditingSuspection] = useState(null);
     const [editingRole, setEditingRole] = useState(null);
+
+    // Moderation states
+    const [showModerationDialog, setShowModerationDialog] = useState(null); // 'kick', 'ban', 'tempban', 'warn', or null
+    const [moderationForm, setModerationForm] = useState({ format: '', reason: '', time: '' });
 
     const fetchWithAuth = async (endpoint, options = {}) => {
         const response = await fetch(`${API_BASE}${endpoint}`, {
@@ -85,7 +93,7 @@ export default function GamingBlockDashboard() {
         if (!token) return;
         setLoading(true);
         try {
-            const [usersRes, bugsRes, reportsRes, messagesRes, newsRes, serversRes, suspectionsRes, rolesRes, playersRes, proxyServersRes] = await Promise.all([
+            const [usersRes, bugsRes, reportsRes, messagesRes, newsRes, serversRes, suspectionsRes, rolesRes, playersRes, proxyServersRes, logsRes] = await Promise.all([
                 fetchWithAuth('/staff/users/get').catch(() => ({ data: [] })),
                 fetchWithAuth('/bugs/get').catch(() => ({ data: [] })),
                 fetchWithAuth('/reports/get').catch(() => ({ data: [] })),
@@ -96,6 +104,7 @@ export default function GamingBlockDashboard() {
                 fetchWithAuth('/roles/get').catch(() => ({ data: [] })),
                 fetchWithAuth('/players/live').catch(() => ({ data: { players: [], count: 0 } })),
                 fetchWithAuth('/servers/getProxy').catch(() => ({ data: { servers: [], count: 0 } })),
+                fetchWithAuth('/logs/get').catch(() => ({ data: [] })),
             ]);
 
             setUsers(Array.isArray(usersRes.data) ? usersRes.data : []);
@@ -108,6 +117,7 @@ export default function GamingBlockDashboard() {
             setRoles(Array.isArray(rolesRes.data) ? rolesRes.data : []);
             setLivePlayers(playersRes.data?.players || []);
             setProxyServers(proxyServersRes.data?.servers || []);
+            setActionLogs(Array.isArray(logsRes.data) ? logsRes.data : []);
         } catch (err) {
             console.error('Failed to load data:', err);
         }
@@ -116,6 +126,17 @@ export default function GamingBlockDashboard() {
 
     useEffect(() => {
         if (token) loadData();
+    }, [token]);
+
+    // Auto-refresh data every 10 seconds
+    useEffect(() => {
+        if (!token) return;
+
+        const interval = setInterval(() => {
+            loadData();
+        }, 10000); // Refresh every 10 seconds
+
+        return () => clearInterval(interval);
     }, [token]);
 
     const createBug = async () => {
@@ -356,6 +377,141 @@ export default function GamingBlockDashboard() {
         }
     };
 
+    // Moderation functions
+    const kickPlayer = async () => {
+        if (!selectedPlayer) return;
+        try {
+            const result = await fetch(`${API_BASE}/moderation/kick`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    player: selectedPlayer.name,
+                    format: moderationForm.format || null,
+                    reason: moderationForm.reason || null,
+                }),
+            });
+            const data = await result.json();
+            if (data.success) {
+                showSuccessMessage(`✓ ${selectedPlayer.name} has been kicked!`);
+                setShowModerationDialog(null);
+                setModerationForm({ format: '', reason: '', time: '' });
+                setSelectedPlayer(null);
+                loadData();
+            } else {
+                alert(`Failed to kick player: ${data.main?.msg || 'Unknown error'}`);
+            }
+        } catch (err) {
+            console.error('Failed to kick player:', err);
+            alert('Error kicking player');
+        }
+    };
+
+    const banPlayer = async () => {
+        if (!selectedPlayer) return;
+        try {
+            const result = await fetch(`${API_BASE}/moderation/ban`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    player: selectedPlayer.name,
+                    format: moderationForm.format || null,
+                    reason: moderationForm.reason || null,
+                }),
+            });
+            const data = await result.json();
+            if (data.success) {
+                showSuccessMessage(`✓ ${selectedPlayer.name} has been banned!`);
+                setShowModerationDialog(null);
+                setModerationForm({ format: '', reason: '', time: '' });
+                setSelectedPlayer(null);
+                loadData();
+            } else {
+                alert(`Failed to ban player: ${data.main?.msg || 'Unknown error'}`);
+            }
+        } catch (err) {
+            console.error('Failed to ban player:', err);
+            alert('Error banning player');
+        }
+    };
+
+    const tempbanPlayer = async () => {
+        if (!selectedPlayer || !moderationForm.time) {
+            alert('Please specify a time duration (e.g., 2d, 1h, 30m)');
+            return;
+        }
+        try {
+            const result = await fetch(`${API_BASE}/moderation/tempban`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    player: selectedPlayer.name,
+                    time: moderationForm.time,
+                    format: moderationForm.format || null,
+                    reason: moderationForm.reason || null,
+                }),
+            });
+            const data = await result.json();
+            if (data.success) {
+                showSuccessMessage(`✓ ${selectedPlayer.name} has been temp-banned for ${moderationForm.time}!`);
+                setShowModerationDialog(null);
+                setModerationForm({ format: '', reason: '', time: '' });
+                setSelectedPlayer(null);
+                loadData();
+            } else {
+                alert(`Failed to tempban player: ${data.main?.msg || 'Unknown error'}`);
+            }
+        } catch (err) {
+            console.error('Failed to tempban player:', err);
+            alert('Error temp-banning player');
+        }
+    };
+
+    const warnPlayer = async () => {
+        if (!selectedPlayer) return;
+        try {
+            const result = await fetch(`${API_BASE}/moderation/warn`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    player: selectedPlayer.name,
+                    format: moderationForm.format || null,
+                    reason: moderationForm.reason || null,
+                }),
+            });
+            const data = await result.json();
+            if (data.success) {
+                showSuccessMessage(`✓ ${selectedPlayer.name} has been warned!`);
+                setShowModerationDialog(null);
+                setModerationForm({ format: '', reason: '', time: '' });
+            } else {
+                alert(`Failed to warn player: ${data.main?.msg || 'Unknown error'}`);
+            }
+        } catch (err) {
+            console.error('Failed to warn player:', err);
+            alert('Error warning player');
+        }
+    };
+
+    const showSuccessMessage = (message) => {
+        const successMsg = document.createElement('div');
+        successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 animate-fade-in';
+        successMsg.textContent = message;
+        document.body.appendChild(successMsg);
+        setTimeout(() => successMsg.remove(), 3000);
+    };
+
     const viewServerLogs = async (serverId) => {
         try {
             const result = await fetchWithAuth(`/servers/logs/get/${serverId}`);
@@ -484,6 +640,7 @@ export default function GamingBlockDashboard() {
         { id: 'news', label: 'News', icon: Newspaper },
         { id: 'servers', label: 'Servers', icon: Server },
         { id: 'suspections', label: 'Suspections', icon: Shield },
+        { id: 'logs', label: 'Logs', icon: ScrollText },
     ];
 
     return (
@@ -743,6 +900,140 @@ export default function GamingBlockDashboard() {
                                             </div>
                                         </div>
                                     )}
+
+                                    {/* Moderation Actions */}
+                                    <div className="bg-gray-700 rounded-lg p-4">
+                                        <p className="text-gray-400 text-sm mb-3">Moderation Actions</p>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <button
+                                                onClick={() => setShowModerationDialog('warn')}
+                                                className="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg font-semibold transition-all duration-300 transform hover:scale-105"
+                                            >
+                                                Warn
+                                            </button>
+                                            <button
+                                                onClick={() => setShowModerationDialog('kick')}
+                                                className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-semibold transition-all duration-300 transform hover:scale-105"
+                                            >
+                                                Kick
+                                            </button>
+                                            <button
+                                                onClick={() => setShowModerationDialog('tempban')}
+                                                className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-semibold transition-all duration-300 transform hover:scale-105"
+                                            >
+                                                Temp Ban
+                                            </button>
+                                            <button
+                                                onClick={() => setShowModerationDialog('ban')}
+                                                className="px-4 py-2 bg-red-700 hover:bg-red-800 text-white rounded-lg font-semibold transition-all duration-300 transform hover:scale-105"
+                                            >
+                                                Ban
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Moderation Dialog */}
+                    {showModerationDialog && selectedPlayer && (
+                        <div
+                            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4"
+                            onClick={() => {
+                                setShowModerationDialog(null);
+                                setModerationForm({ format: '', reason: '', time: '' });
+                            }}
+                        >
+                            <div
+                                className="bg-gray-800 rounded-2xl border border-gray-700 shadow-2xl max-w-md w-full animate-fade-in"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                {/* Header */}
+                                <div className={`relative rounded-t-2xl p-6 ${
+                                    showModerationDialog === 'warn' ? 'bg-gradient-to-r from-yellow-500 to-yellow-600' :
+                                    showModerationDialog === 'kick' ? 'bg-gradient-to-r from-orange-500 to-orange-600' :
+                                    showModerationDialog === 'tempban' ? 'bg-gradient-to-r from-red-500 to-red-600' :
+                                    'bg-gradient-to-r from-red-700 to-red-800'
+                                }`}>
+                                    <button
+                                        onClick={() => {
+                                            setShowModerationDialog(null);
+                                            setModerationForm({ format: '', reason: '', time: '' });
+                                        }}
+                                        className="absolute top-4 right-4 text-white hover:bg-white/20 p-2 rounded-lg transition"
+                                    >
+                                        <X size={20} />
+                                    </button>
+                                    <h2 className="text-2xl font-bold text-white capitalize">
+                                        {showModerationDialog === 'tempban' ? 'Temporary Ban' : showModerationDialog} {selectedPlayer.name}
+                                    </h2>
+                                </div>
+
+                                {/* Body */}
+                                <div className="p-6 space-y-4">
+                                    {showModerationDialog === 'tempban' && (
+                                        <div>
+                                            <label className="block text-gray-400 text-sm mb-2">Duration (e.g., 2d, 1h, 30m) *</label>
+                                            <input
+                                                type="text"
+                                                placeholder="e.g., 2d, 1h, 30m"
+                                                value={moderationForm.time}
+                                                onChange={(e) => setModerationForm({ ...moderationForm, time: e.target.value })}
+                                                className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                                            />
+                                        </div>
+                                    )}
+
+                                    <div>
+                                        <label className="block text-gray-400 text-sm mb-2">Format/Category (optional)</label>
+                                        <input
+                                            type="text"
+                                            placeholder="e.g., @hacking, @spam"
+                                            value={moderationForm.format}
+                                            onChange={(e) => setModerationForm({ ...moderationForm, format: e.target.value })}
+                                            className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-gray-400 text-sm mb-2">Reason (optional)</label>
+                                        <textarea
+                                            placeholder="Enter reason..."
+                                            value={moderationForm.reason}
+                                            onChange={(e) => setModerationForm({ ...moderationForm, reason: e.target.value })}
+                                            className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500 resize-none"
+                                            rows="3"
+                                        />
+                                    </div>
+
+                                    <div className="flex gap-2 pt-2">
+                                        <button
+                                            onClick={() => {
+                                                setShowModerationDialog(null);
+                                                setModerationForm({ format: '', reason: '', time: '' });
+                                            }}
+                                            className="flex-1 px-4 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-semibold transition"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                if (showModerationDialog === 'warn') warnPlayer();
+                                                else if (showModerationDialog === 'kick') kickPlayer();
+                                                else if (showModerationDialog === 'tempban') tempbanPlayer();
+                                                else if (showModerationDialog === 'ban') banPlayer();
+                                            }}
+                                            className={`flex-1 px-4 py-3 text-white rounded-lg font-semibold transition ${
+                                                showModerationDialog === 'warn' ? 'bg-yellow-500 hover:bg-yellow-600' :
+                                                showModerationDialog === 'kick' ? 'bg-orange-500 hover:bg-orange-600' :
+                                                showModerationDialog === 'tempban' ? 'bg-red-500 hover:bg-red-600' :
+                                                'bg-red-700 hover:bg-red-800'
+                                            }`}
+                                        >
+                                            Confirm {showModerationDialog === 'tempban' ? 'Temp Ban' : showModerationDialog.charAt(0).toUpperCase() + showModerationDialog.slice(1)}
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1642,6 +1933,293 @@ export default function GamingBlockDashboard() {
                                         )}
                                     </div>
                                 ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Logs */}
+                    {activeTab === 'logs' && (
+                        <div className="space-y-6 animate-fade-in">
+                            {/* Header with Stats */}
+                            <div className="bg-gradient-to-r from-purple-500 to-purple-600 rounded-xl p-6 shadow-lg">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <h2 className="text-3xl font-bold text-white mb-2">Activity Logs</h2>
+                                        <p className="text-purple-100">Monitor all staff actions and system events</p>
+                                    </div>
+                                    <div className="bg-white/20 rounded-lg px-6 py-4">
+                                        <p className="text-purple-100 text-sm mb-1">Total Logs</p>
+                                        <p className="text-4xl font-bold text-white">{actionLogs.length}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Filters and Search */}
+                            <div className="bg-gray-800 rounded-xl p-6 border border-gray-700 shadow-lg">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {/* Search */}
+                                    <div className="relative">
+                                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                                        <input
+                                            type="text"
+                                            placeholder="Search logs (username, action, endpoint)..."
+                                            value={logSearch}
+                                            onChange={(e) => setLogSearch(e.target.value)}
+                                            className="w-full pl-10 pr-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-purple-500"
+                                        />
+                                    </div>
+
+                                    {/* Filter */}
+                                    <select
+                                        value={logFilter}
+                                        onChange={(e) => setLogFilter(e.target.value)}
+                                        className="px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-purple-500"
+                                    >
+                                        <option value="all">All Actions</option>
+                                        <option value="user">User Management</option>
+                                        <option value="player">Player Actions</option>
+                                        <option value="moderation">Moderation</option>
+                                        <option value="bug">Bug Reports</option>
+                                        <option value="report">Reports</option>
+                                        <option value="news">News</option>
+                                        <option value="server">Server Actions</option>
+                                        <option value="role">Role Management</option>
+                                        <option value="message">Messages</option>
+                                        <option value="suspection">Suspections</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* Logs List */}
+                            <div className="space-y-3">
+                                {actionLogs
+                                    .filter(log => {
+                                        // Apply search filter
+                                        const searchLower = logSearch.toLowerCase();
+                                        const matchesSearch = !logSearch ||
+                                            log.username?.toLowerCase().includes(searchLower) ||
+                                            log.action?.toLowerCase().includes(searchLower) ||
+                                            log.endpoint?.toLowerCase().includes(searchLower) ||
+                                            log.message?.toLowerCase().includes(searchLower) ||
+                                            log.target?.toLowerCase().includes(searchLower);
+
+                                        // Apply category filter
+                                        const matchesFilter = logFilter === 'all' ||
+                                            (logFilter === 'user' && (log.action?.includes('user') || log.endpoint?.includes('user'))) ||
+                                            (logFilter === 'player' && (log.action?.includes('player') || log.endpoint?.includes('player'))) ||
+                                            (logFilter === 'moderation' && (log.action?.includes('kick') || log.action?.includes('ban') || log.action?.includes('warn') || log.endpoint?.includes('moderation'))) ||
+                                            (logFilter === 'bug' && (log.action?.includes('bug') || log.endpoint?.includes('bug'))) ||
+                                            (logFilter === 'report' && (log.action?.includes('report') || log.endpoint?.includes('report'))) ||
+                                            (logFilter === 'news' && (log.action?.includes('news') || log.endpoint?.includes('news'))) ||
+                                            (logFilter === 'server' && (log.action?.includes('server') || log.endpoint?.includes('server'))) ||
+                                            (logFilter === 'role' && (log.action?.includes('role') || log.endpoint?.includes('role'))) ||
+                                            (logFilter === 'message' && (log.action?.includes('message') || log.endpoint?.includes('msg'))) ||
+                                            (logFilter === 'suspection' && (log.action?.includes('suspection') || log.endpoint?.includes('suspection')));
+
+                                        return matchesSearch && matchesFilter;
+                                    })
+                                    .map((log, i) => (
+                                        <div
+                                            key={i}
+                                            onClick={() => setSelectedLog(log)}
+                                            className="bg-gray-800 rounded-xl p-5 border border-gray-700 shadow-lg hover:shadow-xl hover:border-purple-500 transition-all duration-300 cursor-pointer card-hover"
+                                        >
+                                            <div className="flex items-start justify-between">
+                                                <div className="flex-1">
+                                                    <div className="flex items-center gap-3 mb-2">
+                                                        {/* Action Badge */}
+                                                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                                                            log.action?.includes('kick') || log.action?.includes('ban') || log.action?.includes('warn') || log.action?.includes('delete') ? 'bg-red-500/20 text-red-400' :
+                                                            log.action?.includes('create') || log.action?.includes('send') ? 'bg-green-500/20 text-green-400' :
+                                                            log.action?.includes('edit') || log.action?.includes('update') ? 'bg-blue-500/20 text-blue-400' :
+                                                            log.action?.includes('view') || log.action?.includes('GET') ? 'bg-gray-500/20 text-gray-400' :
+                                                            'bg-purple-500/20 text-purple-400'
+                                                        }`}>
+                                                            {log.action || 'Unknown'}
+                                                        </span>
+
+                                                        {/* User Badge */}
+                                                        <span className="px-3 py-1 bg-blue-500/20 text-blue-400 rounded-full text-xs font-semibold">
+                                                            👤 {log.username || 'Unknown'}
+                                                        </span>
+
+                                                        {/* Target Badge (if exists) */}
+                                                        {log.target && (
+                                                            <span className="px-3 py-1 bg-yellow-500/20 text-yellow-400 rounded-full text-xs font-semibold">
+                                                                🎯 {log.target}
+                                                            </span>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Log Message */}
+                                                    <p className="text-gray-300 mb-2 font-mono text-sm">{log.message}</p>
+
+                                                    {/* Endpoint */}
+                                                    <div className="flex items-center gap-2 text-gray-500 text-xs">
+                                                        <span className="font-mono bg-gray-700 px-2 py-1 rounded">{log.endpoint}</span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Timestamp */}
+                                                <div className="text-right ml-4">
+                                                    <p className="text-gray-400 text-xs">
+                                                        {new Date(log.timestamp).toLocaleDateString()}
+                                                    </p>
+                                                    <p className="text-gray-500 text-xs font-mono">
+                                                        {new Date(log.timestamp).toLocaleTimeString()}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+
+                                {/* No Logs Message */}
+                                {actionLogs.filter(log => {
+                                    const searchLower = logSearch.toLowerCase();
+                                    const matchesSearch = !logSearch ||
+                                        log.username?.toLowerCase().includes(searchLower) ||
+                                        log.action?.toLowerCase().includes(searchLower) ||
+                                        log.endpoint?.toLowerCase().includes(searchLower) ||
+                                        log.message?.toLowerCase().includes(searchLower);
+                                    const matchesFilter = logFilter === 'all' ||
+                                        (logFilter === 'user' && log.action?.includes('user')) ||
+                                        (logFilter === 'player' && log.action?.includes('player')) ||
+                                        (logFilter === 'moderation' && (log.action?.includes('kick') || log.action?.includes('ban') || log.action?.includes('warn')));
+                                    return matchesSearch && matchesFilter;
+                                }).length === 0 && (
+                                    <div className="bg-gray-800 rounded-xl p-12 border border-gray-700 text-center">
+                                        <ScrollText size={48} className="mx-auto text-gray-600 mb-4" />
+                                        <p className="text-gray-400 text-lg">No logs found</p>
+                                        <p className="text-gray-500 text-sm mt-2">
+                                            {logSearch || logFilter !== 'all' ? 'Try adjusting your filters' : 'No activity logged yet'}
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Log Detail Popup */}
+                    {selectedLog && (
+                        <div
+                            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto"
+                            onClick={() => setSelectedLog(null)}
+                        >
+                            <div
+                                className="bg-gray-800 rounded-2xl border border-gray-700 shadow-2xl max-w-2xl w-full my-8 animate-fade-in"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                {/* Header */}
+                                <div className="relative bg-gradient-to-r from-purple-500 to-purple-600 rounded-t-2xl p-6">
+                                    <button
+                                        onClick={() => setSelectedLog(null)}
+                                        className="absolute top-4 right-4 text-white hover:bg-white/20 p-2 rounded-lg transition"
+                                    >
+                                        <X size={20} />
+                                    </button>
+                                    <div className="flex items-center gap-4">
+                                        <div className="bg-white/20 p-4 rounded-xl">
+                                            <ScrollText size={32} className="text-white" />
+                                        </div>
+                                        <div>
+                                            <h2 className="text-2xl font-bold text-white mb-1">Log Details</h2>
+                                            <p className="text-purple-100 text-sm">ID: {selectedLog.id}</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Body */}
+                                <div className="p-6 space-y-4">
+                                    {/* Action */}
+                                    <div className="bg-gray-700 rounded-lg p-4">
+                                        <p className="text-gray-400 text-sm mb-2">Action</p>
+                                        <span className={`inline-block px-4 py-2 rounded-lg text-base font-semibold ${
+                                            selectedLog.action?.includes('kick') || selectedLog.action?.includes('ban') || selectedLog.action?.includes('warn') || selectedLog.action?.includes('delete') ? 'bg-red-500/20 text-red-400' :
+                                            selectedLog.action?.includes('create') || selectedLog.action?.includes('send') ? 'bg-green-500/20 text-green-400' :
+                                            selectedLog.action?.includes('edit') || selectedLog.action?.includes('update') ? 'bg-blue-500/20 text-blue-400' :
+                                            selectedLog.action?.includes('view') || selectedLog.action?.includes('GET') ? 'bg-gray-500/20 text-gray-400' :
+                                            'bg-purple-500/20 text-purple-400'
+                                        }`}>
+                                            {selectedLog.action || 'Unknown Action'}
+                                        </span>
+                                    </div>
+
+                                    {/* User */}
+                                    <div className="bg-gray-700 rounded-lg p-4">
+                                        <p className="text-gray-400 text-sm mb-2">User</p>
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold">
+                                                {selectedLog.username?.charAt(0).toUpperCase() || '?'}
+                                            </div>
+                                            <p className="text-white font-semibold text-lg">{selectedLog.username || 'Unknown'}</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Target (if exists) */}
+                                    {selectedLog.target && (
+                                        <div className="bg-gray-700 rounded-lg p-4">
+                                            <p className="text-gray-400 text-sm mb-2">Target</p>
+                                            <p className="text-yellow-400 font-semibold text-lg">🎯 {selectedLog.target}</p>
+                                        </div>
+                                    )}
+
+                                    {/* Message */}
+                                    <div className="bg-gray-700 rounded-lg p-4">
+                                        <p className="text-gray-400 text-sm mb-2">Message</p>
+                                        <p className="text-white font-mono text-sm leading-relaxed">{selectedLog.message}</p>
+                                    </div>
+
+                                    {/* Endpoint */}
+                                    <div className="bg-gray-700 rounded-lg p-4">
+                                        <p className="text-gray-400 text-sm mb-2">Endpoint</p>
+                                        <code className="text-green-400 bg-gray-900 px-3 py-2 rounded block font-mono text-sm">
+                                            {selectedLog.endpoint || 'N/A'}
+                                        </code>
+                                    </div>
+
+                                    {/* Timestamp */}
+                                    <div className="bg-gray-700 rounded-lg p-4">
+                                        <p className="text-gray-400 text-sm mb-2">Timestamp</p>
+                                        <div className="space-y-1">
+                                            <p className="text-white font-semibold">
+                                                📅 {new Date(selectedLog.timestamp).toLocaleDateString('en-US', {
+                                                    weekday: 'long',
+                                                    year: 'numeric',
+                                                    month: 'long',
+                                                    day: 'numeric'
+                                                })}
+                                            </p>
+                                            <p className="text-gray-300 font-mono">
+                                                🕐 {new Date(selectedLog.timestamp).toLocaleTimeString('en-US', {
+                                                    hour12: true,
+                                                    hour: '2-digit',
+                                                    minute: '2-digit',
+                                                    second: '2-digit'
+                                                })}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* Created At (if different from timestamp) */}
+                                    {selectedLog.created_at && selectedLog.created_at !== selectedLog.timestamp && (
+                                        <div className="bg-gray-700 rounded-lg p-4">
+                                            <p className="text-gray-400 text-sm mb-2">Logged At</p>
+                                            <p className="text-gray-300 font-mono text-sm">
+                                                {new Date(selectedLog.created_at).toLocaleString()}
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Footer */}
+                                <div className="bg-gray-700/50 rounded-b-2xl p-4 flex justify-end">
+                                    <button
+                                        onClick={() => setSelectedLog(null)}
+                                        className="px-6 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg font-semibold transition"
+                                    >
+                                        Close
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     )}
