@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
     Home, Users, Bug, AlertTriangle, MessageSquare,
     Newspaper, Server, Shield, Menu, X, Plus, Edit,
-    Trash2, Eye, LogOut, Search, ChevronRight, Gamepad2, ScrollText
+    Trash2, Eye, LogOut, Search, ChevronRight, Gamepad2, ScrollText, BarChart3, TrendingUp
 } from 'lucide-react';
 
 const API_BASE = '/api';
@@ -33,6 +33,7 @@ export default function GamingBlockDashboard() {
     const [selectedLog, setSelectedLog] = useState(null);
     const [logSearch, setLogSearch] = useState('');
     const [logFilter, setLogFilter] = useState('all'); // 'all', 'user', 'bug', 'player', 'moderation', etc.
+    const [insights, setInsights] = useState(null);
 
     // Form states
     const [loginForm, setLoginForm] = useState({ username: '', password: '' });
@@ -93,7 +94,7 @@ export default function GamingBlockDashboard() {
         if (!token) return;
         setLoading(true);
         try {
-            const [usersRes, bugsRes, reportsRes, messagesRes, newsRes, serversRes, suspectionsRes, rolesRes, playersRes, proxyServersRes, logsRes] = await Promise.all([
+            const [usersRes, bugsRes, reportsRes, messagesRes, newsRes, serversRes, suspectionsRes, rolesRes, playersRes, proxyServersRes, logsRes, insightsRes] = await Promise.all([
                 fetchWithAuth('/staff/users/get').catch(() => ({ data: [] })),
                 fetchWithAuth('/bugs/get').catch(() => ({ data: [] })),
                 fetchWithAuth('/reports/get').catch(() => ({ data: [] })),
@@ -105,6 +106,7 @@ export default function GamingBlockDashboard() {
                 fetchWithAuth('/players/live').catch(() => ({ data: { players: [], count: 0 } })),
                 fetchWithAuth('/servers/getProxy').catch(() => ({ data: { servers: [], count: 0 } })),
                 fetchWithAuth('/logs/get').catch(() => ({ data: [] })),
+                fetchWithAuth('/insights/get').catch(() => ({ data: null })),
             ]);
 
             setUsers(Array.isArray(usersRes.data) ? usersRes.data : []);
@@ -118,6 +120,7 @@ export default function GamingBlockDashboard() {
             setLivePlayers(playersRes.data?.players || []);
             setProxyServers(proxyServersRes.data?.servers || []);
             setActionLogs(Array.isArray(logsRes.data) ? logsRes.data : []);
+            setInsights(insightsRes.data || null);
         } catch (err) {
             console.error('Failed to load data:', err);
         }
@@ -631,6 +634,7 @@ export default function GamingBlockDashboard() {
 
     const menuItems = [
         { id: 'dashboard', label: 'Dashboard', icon: Home },
+        { id: 'insights', label: 'Insights', icon: BarChart3 },
         { id: 'players', label: 'Players', icon: Gamepad2 },
         { id: 'users', label: 'Users', icon: Users },
         { id: 'roles', label: 'Roles', icon: Shield },
@@ -1934,6 +1938,264 @@ export default function GamingBlockDashboard() {
                                     </div>
                                 ))}
                             </div>
+                        </div>
+                    )}
+
+                    {/* Insights */}
+                    {activeTab === 'insights' && (
+                        <div className="space-y-6 animate-fade-in">
+                            {/* Header */}
+                            <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl p-6 shadow-lg">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <h2 className="text-3xl font-bold text-white mb-2">System Insights</h2>
+                                        <p className="text-blue-100">Analytics and statistics for your server network</p>
+                                    </div>
+                                    <BarChart3 size={48} className="text-white opacity-80" />
+                                </div>
+                            </div>
+
+                            {insights ? (
+                                <>
+                                    {/* Staff Activity Overview */}
+                                    {insights.staffActivity && (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                                            <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-6 shadow-lg text-white">
+                                                <p className="text-blue-100 text-sm mb-2">Total Actions</p>
+                                                <p className="text-4xl font-bold">{insights.staffActivity.totalActions?.toLocaleString()}</p>
+                                                <p className="text-blue-100 text-xs mt-2">All time</p>
+                                            </div>
+                                            <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-6 shadow-lg text-white">
+                                                <p className="text-green-100 text-sm mb-2">Active Staff</p>
+                                                <p className="text-4xl font-bold">{insights.staffActivity.uniqueStaff}</p>
+                                                <p className="text-green-100 text-xs mt-2">Unique members</p>
+                                            </div>
+                                            <div className="bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-xl p-6 shadow-lg text-white">
+                                                <p className="text-yellow-100 text-sm mb-2">Today</p>
+                                                <p className="text-4xl font-bold">{insights.staffActivity.todayActions}</p>
+                                                <p className="text-yellow-100 text-xs mt-2">Actions today</p>
+                                            </div>
+                                            <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-6 shadow-lg text-white">
+                                                <p className="text-purple-100 text-sm mb-2">This Week</p>
+                                                <p className="text-4xl font-bold">{insights.staffActivity.weekActions}</p>
+                                                <p className="text-purple-100 text-xs mt-2">Last 7 days</p>
+                                            </div>
+                                            <div className="bg-gradient-to-br from-pink-500 to-pink-600 rounded-xl p-6 shadow-lg text-white">
+                                                <p className="text-pink-100 text-sm mb-2">This Month</p>
+                                                <p className="text-4xl font-bold">{insights.staffActivity.monthActions}</p>
+                                                <p className="text-pink-100 text-xs mt-2">Last 30 days</p>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Moderation Statistics */}
+                                    {insights.moderationStats && (
+                                        <div className="bg-gray-800 rounded-xl p-6 border border-gray-700 shadow-lg">
+                                            <h3 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
+                                                <Shield size={24} className="text-red-400" />
+                                                Moderation Statistics
+                                            </h3>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                                                <div className="bg-gray-700 rounded-lg p-4">
+                                                    <p className="text-gray-400 text-sm mb-1">Warnings</p>
+                                                    <p className="text-3xl font-bold text-yellow-400">{insights.moderationStats.totalWarns}</p>
+                                                </div>
+                                                <div className="bg-gray-700 rounded-lg p-4">
+                                                    <p className="text-gray-400 text-sm mb-1">Kicks</p>
+                                                    <p className="text-3xl font-bold text-orange-400">{insights.moderationStats.totalKicks}</p>
+                                                </div>
+                                                <div className="bg-gray-700 rounded-lg p-4">
+                                                    <p className="text-gray-400 text-sm mb-1">Temp Bans</p>
+                                                    <p className="text-3xl font-bold text-red-400">{insights.moderationStats.totalTempbans}</p>
+                                                </div>
+                                                <div className="bg-gray-700 rounded-lg p-4">
+                                                    <p className="text-gray-400 text-sm mb-1">Permanent Bans</p>
+                                                    <p className="text-3xl font-bold text-red-600">{insights.moderationStats.totalBans}</p>
+                                                </div>
+                                                <div className="bg-gray-700 rounded-lg p-4">
+                                                    <p className="text-gray-400 text-sm mb-1">Today</p>
+                                                    <p className="text-3xl font-bold text-blue-400">{insights.moderationStats.todayTotal}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Top Staff Members */}
+                                    {insights.topStaff && insights.topStaff.length > 0 && (
+                                        <div className="bg-gray-800 rounded-xl p-6 border border-gray-700 shadow-lg">
+                                            <h3 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
+                                                <TrendingUp size={24} className="text-green-400" />
+                                                Most Active Staff Members
+                                            </h3>
+                                            <div className="space-y-3">
+                                                {insights.topStaff.slice(0, 10).map((staff, index) => (
+                                                    <div key={index} className="bg-gray-700 rounded-lg p-4 flex items-center justify-between hover:bg-gray-600 transition">
+                                                        <div className="flex items-center gap-4">
+                                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold ${
+                                                                index === 0 ? 'bg-yellow-500' :
+                                                                index === 1 ? 'bg-gray-400' :
+                                                                index === 2 ? 'bg-orange-600' :
+                                                                'bg-blue-500'
+                                                            }`}>
+                                                                {index + 1}
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-white font-semibold">{staff.username}</p>
+                                                                <p className="text-gray-400 text-sm">
+                                                                    Last active: {new Date(staff.lastActive).toLocaleDateString()}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <p className="text-2xl font-bold text-blue-400">{staff.actionCount}</p>
+                                                            <p className="text-gray-400 text-sm">actions</p>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Action Breakdown */}
+                                    {insights.actionBreakdown && (
+                                        <div className="bg-gray-800 rounded-xl p-6 border border-gray-700 shadow-lg">
+                                            <h3 className="text-2xl font-bold text-white mb-4">Action Type Breakdown</h3>
+                                            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                                                <div className="bg-gradient-to-br from-green-500/20 to-green-600/20 border border-green-500/30 rounded-lg p-4">
+                                                    <p className="text-green-400 text-sm mb-2">Create</p>
+                                                    <p className="text-3xl font-bold text-white">{insights.actionBreakdown.create}</p>
+                                                </div>
+                                                <div className="bg-gradient-to-br from-blue-500/20 to-blue-600/20 border border-blue-500/30 rounded-lg p-4">
+                                                    <p className="text-blue-400 text-sm mb-2">Edit</p>
+                                                    <p className="text-3xl font-bold text-white">{insights.actionBreakdown.edit}</p>
+                                                </div>
+                                                <div className="bg-gradient-to-br from-red-500/20 to-red-600/20 border border-red-500/30 rounded-lg p-4">
+                                                    <p className="text-red-400 text-sm mb-2">Delete</p>
+                                                    <p className="text-3xl font-bold text-white">{insights.actionBreakdown.delete}</p>
+                                                </div>
+                                                <div className="bg-gradient-to-br from-gray-500/20 to-gray-600/20 border border-gray-500/30 rounded-lg p-4">
+                                                    <p className="text-gray-400 text-sm mb-2">View</p>
+                                                    <p className="text-3xl font-bold text-white">{insights.actionBreakdown.view}</p>
+                                                </div>
+                                                <div className="bg-gradient-to-br from-orange-500/20 to-orange-600/20 border border-orange-500/30 rounded-lg p-4">
+                                                    <p className="text-orange-400 text-sm mb-2">Moderation</p>
+                                                    <p className="text-3xl font-bold text-white">{insights.actionBreakdown.moderation}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Player Insights */}
+                                    {insights.playerStats && (
+                                        <div className="bg-gray-800 rounded-xl p-6 border border-gray-700 shadow-lg">
+                                            <h3 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
+                                                <Gamepad2 size={24} className="text-purple-400" />
+                                                Player Statistics
+                                            </h3>
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                                                <div className="bg-gray-700 rounded-lg p-4">
+                                                    <p className="text-gray-400 text-sm mb-1">Total Player Actions</p>
+                                                    <p className="text-3xl font-bold text-purple-400">{insights.playerStats.totalPlayerActions}</p>
+                                                </div>
+                                                <div className="bg-gray-700 rounded-lg p-4">
+                                                    <p className="text-gray-400 text-sm mb-1">Unique Players Affected</p>
+                                                    <p className="text-3xl font-bold text-blue-400">{insights.playerStats.uniquePlayersAffected}</p>
+                                                </div>
+                                                <div className="bg-gray-700 rounded-lg p-4">
+                                                    <p className="text-gray-400 text-sm mb-1">Currently Online</p>
+                                                    <p className="text-3xl font-bold text-green-400">{livePlayers.length}</p>
+                                                </div>
+                                            </div>
+
+                                            {/* Most Targeted Players */}
+                                            {insights.playerStats.topTargetedPlayers && insights.playerStats.topTargetedPlayers.length > 0 && (
+                                                <div>
+                                                    <h4 className="text-lg font-semibold text-white mb-3">Most Frequently Targeted Players</h4>
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                        {insights.playerStats.topTargetedPlayers.slice(0, 10).map((player, index) => (
+                                                            <div key={index} className="bg-gray-700 rounded-lg p-3 flex items-center justify-between">
+                                                                <div className="flex items-center gap-3">
+                                                                    <img
+                                                                        src={`https://mc-heads.net/avatar/${player.target}/32`}
+                                                                        alt={player.target}
+                                                                        className="w-8 h-8 rounded"
+                                                                    />
+                                                                    <p className="text-white font-semibold">{player.target}</p>
+                                                                </div>
+                                                                <div className="bg-blue-500/20 px-3 py-1 rounded-full">
+                                                                    <p className="text-blue-400 font-semibold">{player.count} actions</p>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* Content Statistics */}
+                                    {insights.contentStats && (
+                                        <div className="bg-gray-800 rounded-xl p-6 border border-gray-700 shadow-lg">
+                                            <h3 className="text-2xl font-bold text-white mb-4">Content Statistics</h3>
+                                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                                                <div className="bg-gray-700 rounded-lg p-4 text-center">
+                                                    <Bug size={24} className="mx-auto mb-2 text-red-400" />
+                                                    <p className="text-2xl font-bold text-white">{insights.contentStats.totalBugs}</p>
+                                                    <p className="text-gray-400 text-sm">Bugs</p>
+                                                </div>
+                                                <div className="bg-gray-700 rounded-lg p-4 text-center">
+                                                    <AlertTriangle size={24} className="mx-auto mb-2 text-yellow-400" />
+                                                    <p className="text-2xl font-bold text-white">{insights.contentStats.totalReports}</p>
+                                                    <p className="text-gray-400 text-sm">Reports</p>
+                                                </div>
+                                                <div className="bg-gray-700 rounded-lg p-4 text-center">
+                                                    <Newspaper size={24} className="mx-auto mb-2 text-blue-400" />
+                                                    <p className="text-2xl font-bold text-white">{insights.contentStats.totalNews}</p>
+                                                    <p className="text-gray-400 text-sm">News</p>
+                                                </div>
+                                                <div className="bg-gray-700 rounded-lg p-4 text-center">
+                                                    <Shield size={24} className="mx-auto mb-2 text-purple-400" />
+                                                    <p className="text-2xl font-bold text-white">{insights.contentStats.totalSuspections}</p>
+                                                    <p className="text-gray-400 text-sm">Suspicions</p>
+                                                </div>
+                                                <div className="bg-gray-700 rounded-lg p-4 text-center">
+                                                    <Users size={24} className="mx-auto mb-2 text-green-400" />
+                                                    <p className="text-2xl font-bold text-white">{insights.contentStats.totalUsers}</p>
+                                                    <p className="text-gray-400 text-sm">Staff</p>
+                                                </div>
+                                                <div className="bg-gray-700 rounded-lg p-4 text-center">
+                                                    <Shield size={24} className="mx-auto mb-2 text-orange-400" />
+                                                    <p className="text-2xl font-bold text-white">{insights.contentStats.totalRoles}</p>
+                                                    <p className="text-gray-400 text-sm">Roles</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Top Actions */}
+                                    {insights.topActions && insights.topActions.length > 0 && (
+                                        <div className="bg-gray-800 rounded-xl p-6 border border-gray-700 shadow-lg">
+                                            <h3 className="text-2xl font-bold text-white mb-4">Most Common Actions</h3>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                {insights.topActions.map((action, index) => (
+                                                    <div key={index} className="bg-gray-700 rounded-lg p-4 flex items-center justify-between hover:bg-gray-600 transition">
+                                                        <p className="text-white font-mono">{action.action}</p>
+                                                        <div className="bg-blue-500/20 px-4 py-2 rounded-full">
+                                                            <p className="text-blue-400 font-bold">{action.count}</p>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
+                            ) : (
+                                <div className="bg-gray-800 rounded-xl p-12 border border-gray-700 text-center">
+                                    <BarChart3 size={64} className="mx-auto text-gray-600 mb-4" />
+                                    <p className="text-gray-400 text-lg">Loading insights...</p>
+                                    <p className="text-gray-500 text-sm mt-2">Please wait while we gather analytics data</p>
+                                </div>
+                            )}
                         </div>
                     )}
 
