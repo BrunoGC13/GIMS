@@ -941,6 +941,203 @@ app.post('/api/moderation/warn', authenticateToken, checkPerms("playerWarn"), lo
     }
 });
 
+app.get('/api/moderation/getPlayerHistory/:name', authenticateToken, checkPerms("playerHistoryView"), async (req, res) => {
+    const { name } = req.params;
+    if (!name) {
+        let constructor = createConstructor(
+            process.env.SUCCESS_VAR,
+            400,
+            "Please include the needed variables!",
+            undefined
+        );
+        constructor.main['endpoint'] = req.path;
+        return res.status(constructor.status).json(constructor);
+    }
+    try {
+        const result = await getPlayerHistory(name);
+        if (result.error) {
+            let internalServerError = await createConstructor(process.env.ERROR_VAR, 500, "Internal Server Error", undefined);
+            internalServerError.main['endpoint'] = req.path;
+            return res.status(internalServerError.status).json(internalServerError);
+        }
+
+        result.main['endpoint'] = req.path;
+        return res.json(result);
+    } catch (err) {
+        console.error(err);
+        let internalServerError = await createConstructor(process.env.ERROR_VAR, 500, "Internal Server Error", undefined);
+        internalServerError.main['endpoint'] = req.path;
+        return res.status(internalServerError.status).json(internalServerError);
+    }
+})
+
+app.get('/api/moderation/getPlayer/:name', async (req, res) => {
+    const { name } = req.params;
+    if (!name) {
+        let constructor = await createConstructor(
+            process.env.SUCCESS_VAR,
+            400,
+            "Please include the needed variables!",
+            undefined
+        );
+        constructor.main['endpoint'] = req.path;
+        return res.status(constructor.status).json(constructor);
+    }
+    const history = await getPlayerHistory(name);
+    if (history.error) {
+        let internalServerError = await createConstructor(process.env.ERROR_VAR, 500, "Internal Server Error", undefined);
+        internalServerError.main['endpoint'] = req.path;
+        return res.status(internalServerError.status).json(internalServerError);
+    }
+    const player = await getPlayer(name);
+    if (player.error) {
+        let internalServerError = await createConstructor(process.env.ERROR_VAR, 500, "Internal Server Error", undefined);
+        internalServerError.main['endpoint'] = req.path;
+        return res.status(internalServerError.status).json(internalServerError);
+    }
+
+    let tempData = {playerHistory: history.data, playerData: player.data};
+
+    let constructor = await createConstructor(process.env.SUCCESS_VAR, 200, "Got player data", tempData);
+    constructor.main['endpoint'] = req.path;
+    return res.json(constructor);
+});
+
+// === Tickets ===
+app.post('/api/tickets/create', async (req, res) => {
+    const { name, content } = req.body;
+    if (!name || !content) {
+        let constructor = await createConstructor(
+            process.env.SUCCESS_VAR,
+            400,
+            "Please include the needed variables!",
+            undefined
+        );
+        constructor.main['endpoint'] = req.path;
+        return res.status(constructor.status).json(constructor);
+    }
+    try {
+        const result = await tickets.createTicket(name, content);
+        if (result.error) {
+            let internalServerError = await createConstructor(process.env.ERROR_VAR, 500, "Internal Server Error", undefined);
+            internalServerError.main['endpoint'] = req.path;
+            return res.status(internalServerError.status).json(internalServerError);
+        }
+        result.main['endpoint'] = req.path;
+        return res.json(result);
+    } catch (err) {
+        console.error(err);
+        let internalServerError = await createConstructor(process.env.ERROR_VAR, 500, "Internal Server Error", undefined);
+        internalServerError.main['endpoint'] = req.path;
+        return res.status(internalServerError.status).json(internalServerError);
+    }
+})
+
+app.delete('/api/tickets/delete', async (req, res) => {
+    const { id } = req.body;
+    if (!id) {
+        let constructor = await createConstructor(
+            process.env.SUCCESS_VAR,
+            400,
+            "Please include the needed variables!",
+            undefined
+        );
+        constructor.main['endpoint'] = req.path;
+        return res.status(constructor.status).json(constructor);
+    }
+    try {
+        const result = await tickets.deleteTicket(id);
+        if (result.error) {
+            let internalServerError = await createConstructor(process.env.ERROR_VAR, 500, "Internal Server Error", undefined);
+            internalServerError.main['endpoint'] = req.path;
+            return res.status(internalServerError.status).json(internalServerError);
+        }
+        result.main['endpoint'] = req.path;
+        return res.json(result);
+    } catch (err) {
+        console.error(err);
+        let internalServerError = await createConstructor(process.env.ERROR_VAR, 500, "Internal Server Error", undefined);
+        internalServerError.main['endpoint'] = req.path;
+        return res.status(internalServerError.status).json(internalServerError);
+    }
+})
+
+app.put('/api/tickets/updateStatus', async (req, res) => {
+    const { id, status } = req.body;
+    if (!id || !status) {
+        let constructor = await createConstructor(
+            process.env.SUCCESS_VAR,
+            400,
+            "Please include the needed variables!",
+            undefined
+        );
+        constructor.main['endpoint'] = req.path;
+        return res.status(constructor.status).json(constructor);
+    }
+    try {
+        const result = await tickets.updateStatus(id, status);
+        if (result.error) {
+            let internalServerError = await createConstructor(process.env.ERROR_VAR, 500, "Internal Server Error", undefined);
+            internalServerError.main['endpoint'] = req.path;
+            return res.status(internalServerError.status).json(internalServerError);
+        }
+        result.main['endpoint'] = req.path;
+        return res.json(result);
+    } catch (err) {
+        console.error(err);
+        let internalServerError = await createConstructor(process.env.ERROR_VAR, 500, "Internal Server Error", undefined);
+        internalServerError.main['endpoint'] = req.path;
+        return res.status(internalServerError.status).json(internalServerError);
+    }
+})
+
+app.put('/api/tickets/finish', async (req, res) => {
+    const { id } = req.body;
+    if (!id) {
+        let constructor = await createConstructor(
+            process.env.SUCCESS_VAR,
+            400,
+            "Please include the needed variables!",
+            undefined
+        );
+        constructor.main['endpoint'] = req.path;
+        return res.status(constructor.status).json(constructor);
+    }
+    try {
+        const result = await tickets.finish(id);
+        if (result.error) {
+            let internalServerError = await createConstructor(process.env.ERROR_VAR, 500, "Internal Server Error", undefined);
+            internalServerError.main['endpoint'] = req.path;
+            return res.status(internalServerError.status).json(internalServerError);
+        }
+        result.main['endpoint'] = req.path;
+        return res.json(result);
+    } catch (err) {
+        console.error(err);
+        let internalServerError = await createConstructor(process.env.ERROR_VAR, 500, "Internal Server Error", undefined);
+        internalServerError.main['endpoint'] = req.path;
+        return res.status(internalServerError.status).json(internalServerError);
+    }
+})
+
+app.get('/api/tickets/get', async (req, res) => {
+    try {
+        const result = await tickets.get();
+        if (result.error) {
+            let internalServerError = await createConstructor(process.env.ERROR_VAR, 500, "Internal Server Error", undefined);
+            internalServerError.main['endpoint'] = req.path;
+            return res.status(internalServerError.status).json(internalServerError);
+        }
+        result.main['endpoint'] = req.path;
+        return res.json(result);
+    } catch (err) {
+        console.error(err);
+        let internalServerError = await createConstructor(process.env.ERROR_VAR, 500, "Internal Server Error", undefined);
+        internalServerError.main['endpoint'] = req.path;
+        return res.status(internalServerError.status).json(internalServerError);
+    }
+})
+
 app.use(express.static(path.join(__dirname, 'public/staff/dist')));
 app.use('/support', express.static(path.join(__dirname, 'public/support')));
 
