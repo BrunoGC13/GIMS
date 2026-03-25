@@ -5,6 +5,8 @@ const multer = require('multer');
 const bodyparser = require('body-parser');
 const mysql = require('mysql2/promise');
 const path = require('path');
+const https = require('https');
+const fs = require('fs');
 
 const bugs = require('./modules/bugs/bugs');
 const reports = require('./modules/reports/reports');
@@ -49,8 +51,41 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 // === Static ===
-app.use(bodyparser.json());
+app.use(bodyparser.json({ limit: '10kb' }));
 app.use(cors());
+
+// === Config ===
+const { rateLimit } = require('express-rate-limit');
+const helmet = require('helmet');
+
+const options = {
+    key: fs.readFileSync(path.join(__dirname, "local-key.pem")),
+    cert: fs.readFileSync(path.join(__dirname, "local.pem"))
+}
+
+const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    limit: 100, // Limit each IP to 100 requests per `window` (here, per 15 minutes).
+    standardHeaders: 'draft-8',
+    message: 'Too many requests! Try again later',
+    legacyHeaders: false, // Disable the `X-RateLimit-*` headers.
+})
+
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'", "'unsafe-inline'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            imgSrc: ["'self'", "data:", "https:"],
+        }
+    },
+    hsts: {
+        maxAge: 31536000,
+        includeSubDomains: true,
+        preload: true
+    }
+}));
 
 // === Endpoints ===
 app.get('/api/test', (req, res) => {
@@ -66,7 +101,7 @@ app.get('/api/test', (req, res) => {
 })
 
 // === Users ===
-app.post('/api/staff/users/create', authenticateToken, checkPerms("userCreation"), logAction("create user", req => req.body.username), async (req, res) => {
+app.post('/api/staff/users/create', limiter, authenticateToken, checkPerms("userCreation"), logAction("create user", req => req.body.username), async (req, res) => {
     const { username, password, permissions, ign } = req.body;
 
     if (!username || !password || !permissions || !ign) {
@@ -98,7 +133,7 @@ app.post('/api/staff/users/create', authenticateToken, checkPerms("userCreation"
     }
 });
 
-app.delete('/api/staff/users/delete', authenticateToken, checkPerms("userDeletion"), logAction("delete user", req => req.user.username), async (req, res) => {
+app.delete('/api/staff/users/delete', limiter, authenticateToken, checkPerms("userDeletion"), logAction("delete user", req => req.user.username), async (req, res) => {
     const { username } = req.user;
     if (!username) {
         missingUsernameErasementVariable.main['endpoint'] = req.path;
@@ -165,7 +200,7 @@ app.get('/api/staff/users/get/:name', authenticateToken, checkPerms("userView"),
     }
 });
 
-app.post('/api/staff/users/login', logAction("login", req => req.body.username), async (req, res) => {
+app.post('/api/staff/users/login', limiter, logAction("login", req => req.body.username), async (req, res) => {
     const { username, password } = req.body;
 
     if (!username || !password) {
@@ -221,7 +256,7 @@ app.get('/api/bugs/get', async (req, res) => {
     }
 });
 
-app.post('/api/bugs/create', logAction("create bug", req => req.body.name), async (req, res) => {
+app.post('/api/bugs/create', limiter, logAction("create bug", req => req.body.name), async (req, res) => {
     const { name, content } = req.body;
     if (!name || !content) {
         missingBugCreationVariables.main['path'] = req.path;
@@ -238,7 +273,7 @@ app.post('/api/bugs/create', logAction("create bug", req => req.body.name), asyn
     return res.json(result);
 })
 
-app.delete('/api/bugs/delete', authenticateToken, checkPerms("bugDeletion"), logAction("delete bug", req => req.body.name), async (req, res) => {
+app.delete('/api/bugs/delete', limiter, authenticateToken, checkPerms("bugDeletion"), logAction("delete bug", req => req.body.name), async (req, res) => {
     const { name } = req.body;
     if (!name) {
         missingBugErasementVariables.main['endpoint'] = req.path;
@@ -264,7 +299,7 @@ app.delete('/api/bugs/delete', authenticateToken, checkPerms("bugDeletion"), log
 });
 
 // === Reports ===
-app.post('/api/reports/create', logAction("create report", req => req.body.player), async (req, res) => {
+app.post('/api/reports/create', limiter, logAction("create report", req => req.body.player), async (req, res) => {
     const { player, content } = req.body;
     if (!player || !content) {
         missingReportCreationVariables.main['path'] = req.path;
@@ -301,7 +336,7 @@ app.get('/api/reports/get', async (req, res) => {
     return res.json(gotReportsSuccess);
 })
 
-app.delete('/api/reports/delete', authenticateToken, checkPerms("reportDeletion"), logAction("delete report", req => req.body.player), async (req, res) => {
+app.delete('/api/reports/delete', limiter, authenticateToken, checkPerms("reportDeletion"), logAction("delete report", req => req.body.player), async (req, res) => {
     const { player } = req.body;
     if (!player) {
         missingReportCreationVariables.main['endpoint'] = req.path;
@@ -327,7 +362,7 @@ app.delete('/api/reports/delete', authenticateToken, checkPerms("reportDeletion"
 });
 
 // === Messages ===
-app.post('/api/msg/send', authenticateToken, checkPerms("msgCreation"), logAction("send message"), async (req, res) => {
+app.post('/api/msg/send', limiter, authenticateToken, checkPerms("msgCreation"), logAction("send message"), async (req, res) => {
     const { username } = req.user;
     const { msg } = req.body;
     if (!username) {
@@ -351,7 +386,7 @@ app.post('/api/msg/send', authenticateToken, checkPerms("msgCreation"), logActio
     }
 })
 
-app.delete('/api/msg/delete', authenticateToken, checkPerms("msgDeletion"), logAction("delete message", req => req.body.id), async (req, res) => {
+app.delete('/api/msg/delete', limiter, authenticateToken, checkPerms("msgDeletion"), logAction("delete message", req => req.body.id), async (req, res) => {
     const { username } = req.user;
     const { id } = req.body;
     if (!username) {
@@ -394,7 +429,7 @@ app.get('/api/msg/get', authenticateToken, checkPerms("msgView"), async (req, re
 })
 
 // === News ===
-app.post('/api/news/write', authenticateToken, checkPerms("newsCreation"), logAction("create news", req => req.body.title), [body('title').isString().trim().isLength({ min: 1, max: 200 }).escape(), body('content').isString().trim().isLength({ min: 1, max: 5000 }).escape(), body('level').isInt({ min: 1, max: 5 })], async (req, res) => {
+app.post('/api/news/write', limiter, authenticateToken, checkPerms("newsCreation"), logAction("create news", req => req.body.title), [body('title').isString().trim().isLength({ min: 1, max: 200 }).escape(), body('content').isString().trim().isLength({ min: 1, max: 5000 }).escape(), body('level').isInt({ min: 1, max: 5 })], async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
         return res.status(400).json({ errors: errors.array() });
@@ -425,7 +460,7 @@ app.post('/api/news/write', authenticateToken, checkPerms("newsCreation"), logAc
     }
 })
 
-app.put('/api/news/edit', authenticateToken, checkPerms("newsEdit"), logAction("edit news", req => req.body.title), async (req, res) => {
+app.put('/api/news/edit', limiter, authenticateToken, checkPerms("newsEdit"), logAction("edit news", req => req.body.title), async (req, res) => {
     const { username } = req.user;
     const { id, content, title, level } = req.body;
     if (!content || !title || !level) {
@@ -452,7 +487,7 @@ app.put('/api/news/edit', authenticateToken, checkPerms("newsEdit"), logAction("
     }
 })
 
-app.delete('/api/news/delete', authenticateToken, checkPerms("newsDeletion"), logAction("delete news", req => req.body.id), async (req, res) => {
+app.delete('/api/news/delete', limiter, authenticateToken, checkPerms("newsDeletion"), logAction("delete news", req => req.body.id), async (req, res) => {
     const { username } = req.user;
     const { id } = req.body;
     if (!id) {
@@ -495,7 +530,7 @@ app.get('/api/news/get', async (req, res) => {
 })
 
 // === Servers ===
-app.post('/api/servers/action/:action', authenticateToken, checkPerms('serverAction'), logAction("server action", req => `${req.params.action} on server ${req.body.id}`), async (req, res) => {
+app.post('/api/servers/action/:action', limiter, authenticateToken, checkPerms('serverAction'), logAction("server action", req => `${req.params.action} on server ${req.body.id}`), async (req, res) => {
     const { action } = req.params;
     const { id } = req.body;
     if (!id || !action) {
@@ -619,7 +654,7 @@ app.get('/api/logs/get',  async (req, res) => {
 });
 
 // === Suspections ===
-app.post('/api/suspections/create', authenticateToken, checkPerms("suspectionCreation"), logAction("create suspection", req => req.body.subject), async (req, res) => {
+app.post('/api/suspections/create', limiter, authenticateToken, checkPerms("suspectionCreation"), logAction("create suspection", req => req.body.subject), async (req, res) => {
     const { title, description, subject } = req.body;
     if (!title || !description || !subject) {
         missingCreateSuspectionVariables.main['endpoint'] = req.path;
@@ -642,7 +677,7 @@ app.post('/api/suspections/create', authenticateToken, checkPerms("suspectionCre
     }
 })
 
-app.delete('/api/suspections/delete', authenticateToken, checkPerms("suspectionDeletion"), logAction("delete suspection", req => req.body.id), async (req, res) => {
+app.delete('/api/suspections/delete', limiter, authenticateToken, checkPerms("suspectionDeletion"), logAction("delete suspection", req => req.body.id), async (req, res) => {
     const { id } = req.body;
     if (!id) {
         missingDeleteSuspectionsVariables.main['endpoint'] = req.path;
@@ -664,7 +699,7 @@ app.delete('/api/suspections/delete', authenticateToken, checkPerms("suspectionD
     }
 })
 
-app.put('/api/suspections/edit', authenticateToken, checkPerms("suspectionEdit"), logAction("edit suspection", req => req.body.subject), async (req, res) => {
+app.put('/api/suspections/edit', limiter, authenticateToken, checkPerms("suspectionEdit"), logAction("edit suspection", req => req.body.subject), async (req, res) => {
     const { id, title, description, subject } = req.body;
     if (!id || !title || !description || !subject) {
         missingSuspectionEditVariables.main['path'] = req.path;
@@ -705,7 +740,7 @@ app.get('/api/suspections/get', authenticateToken, checkPerms("suspectionView"),
 })
 
 // === Roles ===
-app.post('/api/staff/roles/create', authenticateToken, checkPerms("roleCreation"), logAction("create role", req => req.body.name), async (req, res) => {
+app.post('/api/staff/roles/create', limiter, authenticateToken, checkPerms("roleCreation"), logAction("create role", req => req.body.name), async (req, res) => {
     const { name, perms } = req.body;
     if (!name || !perms) {
         let constructor = await createConstructor(process.env.ERROR_VAR, 400, "Please include the needed body variables for creating a role!", undefined);
@@ -745,7 +780,7 @@ app.get('/api/roles/get', authenticateToken, checkPerms("roleView"), async (req,
     }
 })
 
-app.delete('/api/staff/roles/delete', authenticateToken, checkPerms("roleDeletion"), logAction("delete role", req => req.body.id), async (req, res) => {
+app.delete('/api/staff/roles/delete', limiter, authenticateToken, checkPerms("roleDeletion"), logAction("delete role", req => req.body.id), async (req, res) => {
     const { id } = req.body;
     if (!id) {
         let constructor = await createConstructor(process.env.ERROR_VAR, 400, "Please include the needed body variables for deleting a role!", undefined);
@@ -768,7 +803,7 @@ app.delete('/api/staff/roles/delete', authenticateToken, checkPerms("roleDeletio
     }
 })
 
-app.put('/api/staff/roles/edit', authenticateToken, checkPerms("roleEdit"), logAction("edit role", req => req.body.name), async (req, res) => {
+app.put('/api/staff/roles/edit', limiter, authenticateToken, checkPerms("roleEdit"), logAction("edit role", req => req.body.name), async (req, res) => {
     const { id, name, perms } = req.body;
     if (!id || !name || !perms) {
         let constructor = await createConstructor(process.env.ERROR_VAR, 400, "Please include the needed body variables for editing a role!", undefined);
@@ -837,7 +872,7 @@ app.get('/api/player/:name', authenticateToken, checkPerms("playerView"), async 
     }
 })
 
-app.post('/api/player/send/:name', authenticateToken, checkPerms("playerSending"), logAction("send player", req => `${req.params.name} to ${req.body.server}`), async (req, res) => {
+app.post('/api/player/send/:name', limiter, authenticateToken, checkPerms("playerSending"), logAction("send player", req => `${req.params.name} to ${req.body.server}`), async (req, res) => {
     const { name } = req.params;
     const { server } = req.body;
     if (!name || !server) {
@@ -868,7 +903,7 @@ app.post('/api/player/send/:name', authenticateToken, checkPerms("playerSending"
 });
 
 // === Moderation ===
-app.post('/api/moderation/kick', authenticateToken, checkPerms("playerKick"), logAction("kick player", req => req.body.player), async (req, res) => {
+app.post('/api/moderation/kick', limiter, authenticateToken, checkPerms("playerKick"), logAction("kick player", req => req.body.player), async (req, res) => {
     const { player, format, reason } = req.body;
 
     if (!player) {
@@ -894,7 +929,7 @@ app.post('/api/moderation/kick', authenticateToken, checkPerms("playerKick"), lo
     }
 });
 
-app.post('/api/moderation/ban', authenticateToken, checkPerms("playerBan"), logAction("ban player", req => req.body.player), async (req, res) => {
+app.post('/api/moderation/ban', limiter, authenticateToken, checkPerms("playerBan"), logAction("ban player", req => req.body.player), async (req, res) => {
     const { player, format, reason } = req.body;
 
     if (!player) {
@@ -920,7 +955,7 @@ app.post('/api/moderation/ban', authenticateToken, checkPerms("playerBan"), logA
     }
 });
 
-app.post('/api/moderation/tempban', authenticateToken, checkPerms("playerTempban"), logAction("tempban player", req => `${req.body.player} for ${req.body.time}`), async (req, res) => {
+app.post('/api/moderation/tempban', limiter, authenticateToken, checkPerms("playerTempban"), logAction("tempban player", req => `${req.body.player} for ${req.body.time}`), async (req, res) => {
     const { player, time, format, reason } = req.body;
 
     if (!player || !time) {
@@ -946,7 +981,7 @@ app.post('/api/moderation/tempban', authenticateToken, checkPerms("playerTempban
     }
 });
 
-app.post('/api/moderation/warn', authenticateToken, checkPerms("playerWarn"), logAction("warn player", req => req.body.player), async (req, res) => {
+app.post('/api/moderation/warn', limiter, authenticateToken, checkPerms("playerWarn"), logAction("warn player", req => req.body.player), async (req, res) => {
     const { player, format, reason } = req.body;
 
     if (!player) {
@@ -1035,7 +1070,7 @@ app.get('/api/moderation/getPlayer/:name', async (req, res) => {
 });
 
 // === Tickets ===
-app.post('/api/tickets/create', async (req, res) => {
+app.post('/api/tickets/create',limiter,  async (req, res) => {
     const { name, content } = req.body;
     if (!name || !content) {
         let constructor = await createConstructor(
@@ -1064,7 +1099,7 @@ app.post('/api/tickets/create', async (req, res) => {
     }
 })
 
-app.delete('/api/tickets/delete', async (req, res) => {
+app.delete('/api/tickets/delete',limiter,  async (req, res) => {
     const { id } = req.body;
     if (!id) {
         let constructor = await createConstructor(
@@ -1093,7 +1128,7 @@ app.delete('/api/tickets/delete', async (req, res) => {
     }
 })
 
-app.put('/api/tickets/updateStatus', async (req, res) => {
+app.put('/api/tickets/updateStatus',limiter,  async (req, res) => {
     const { id, status } = req.body;
     if (!id || !status) {
         let constructor = await createConstructor(
@@ -1122,7 +1157,7 @@ app.put('/api/tickets/updateStatus', async (req, res) => {
     }
 })
 
-app.put('/api/tickets/finish', async (req, res) => {
+app.put('/api/tickets/finish',limiter,  async (req, res) => {
     const { id } = req.body;
     if (!id) {
         let constructor = await createConstructor(
@@ -1173,7 +1208,8 @@ app.use(express.static(path.join(__dirname, 'public/staff/dist')));
 app.use('/support', express.static(path.join(__dirname, 'public/support')));
 
 // === Start ===
-app.listen(port, () => {
+const httpsServer = https.createServer(options, app);
+httpsServer.listen(port, () => {
     console.log(`GamingBlock internal management server started successfully!`);
-    console.log(`Open on: http://localhost:${port}`);
+    console.log(`Open on: https://localhost:${port}`);
 })

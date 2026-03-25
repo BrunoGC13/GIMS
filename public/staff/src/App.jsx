@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
     Home, Users, Bug, AlertTriangle, MessageSquare,
     Newspaper, Server, Shield, Menu, X, Plus, Edit,
-    Trash2, Eye, LogOut, Search, ChevronRight, Gamepad2, ScrollText, BarChart3, TrendingUp
+    Trash2, Eye, LogOut, Search, ChevronRight, Gamepad2, ScrollText, BarChart3, TrendingUp, Ticket, CheckCircle
 } from 'lucide-react';
 
 const API_BASE = '/api';
@@ -34,6 +34,9 @@ export default function GamingBlockDashboard() {
     const [logSearch, setLogSearch] = useState('');
     const [logFilter, setLogFilter] = useState('all'); // 'all', 'user', 'bug', 'player', 'moderation', etc.
     const [insights, setInsights] = useState(null);
+    const [tickets, setTickets] = useState([]);
+    const [selectedTicket, setSelectedTicket] = useState(null);
+    const [ticketStatusFilter, setTicketStatusFilter] = useState('all'); // 'all', 'in progress', 'finished'
 
     // Form states
     const [loginForm, setLoginForm] = useState({ username: '', password: '' });
@@ -55,6 +58,12 @@ export default function GamingBlockDashboard() {
     // Moderation states
     const [showModerationDialog, setShowModerationDialog] = useState(null); // 'kick', 'ban', 'tempban', 'warn', or null
     const [moderationForm, setModerationForm] = useState({ format: '', reason: '', time: '' });
+
+    // Moderation tab states
+    const [selectedModerationPlayers, setSelectedModerationPlayers] = useState([]); // Array of selected player names for bulk actions
+    const [selectedModerationPlayer, setSelectedModerationPlayer] = useState(null); // Selected player for detail view
+    const [playerHistory, setPlayerHistory] = useState([]); // History for selected player
+    const [showBulkModerationDialog, setShowBulkModerationDialog] = useState(null); // 'kick', 'ban', 'tempban', 'warn' for bulk actions
 
     const fetchWithAuth = async (endpoint, options = {}) => {
         const response = await fetch(`${API_BASE}${endpoint}`, {
@@ -94,7 +103,7 @@ export default function GamingBlockDashboard() {
         if (!token) return;
         setLoading(true);
         try {
-            const [usersRes, bugsRes, reportsRes, messagesRes, newsRes, serversRes, suspectionsRes, rolesRes, playersRes, proxyServersRes, logsRes, insightsRes] = await Promise.all([
+            const [usersRes, bugsRes, reportsRes, messagesRes, newsRes, serversRes, suspectionsRes, rolesRes, playersRes, proxyServersRes, logsRes, insightsRes, ticketsRes] = await Promise.all([
                 fetchWithAuth('/staff/users/get').catch(() => ({ data: [] })),
                 fetchWithAuth('/bugs/get').catch(() => ({ data: [] })),
                 fetchWithAuth('/reports/get').catch(() => ({ data: [] })),
@@ -107,6 +116,7 @@ export default function GamingBlockDashboard() {
                 fetchWithAuth('/servers/getProxy').catch(() => ({ data: { servers: [], count: 0 } })),
                 fetchWithAuth('/logs/get').catch(() => ({ data: [] })),
                 fetchWithAuth('/insights/get').catch(() => ({ data: null })),
+                fetchWithAuth('/tickets/get').catch(() => ({ data: [] })),
             ]);
 
             setUsers(Array.isArray(usersRes.data) ? usersRes.data : []);
@@ -121,6 +131,7 @@ export default function GamingBlockDashboard() {
             setProxyServers(proxyServersRes.data?.servers || []);
             setActionLogs(Array.isArray(logsRes.data) ? logsRes.data : []);
             setInsights(insightsRes.data || null);
+            setTickets(Array.isArray(ticketsRes.data) ? ticketsRes.data : []);
         } catch (err) {
             console.error('Failed to load data:', err);
         }
@@ -330,6 +341,47 @@ export default function GamingBlockDashboard() {
         loadData();
     };
 
+    // Ticket functions
+    const updateTicketStatus = async (id, status) => {
+        try {
+            await fetchWithAuth('/tickets/updateStatus', {
+                method: 'PUT',
+                body: JSON.stringify({ id, status }),
+            });
+            loadData();
+        } catch (err) {
+            console.error('Failed to update ticket status:', err);
+            alert('Error updating ticket status');
+        }
+    };
+
+    const finishTicket = async (id) => {
+        try {
+            await fetchWithAuth('/tickets/finish', {
+                method: 'PUT',
+                body: JSON.stringify({ id }),
+            });
+            loadData();
+        } catch (err) {
+            console.error('Failed to finish ticket:', err);
+            alert('Error finishing ticket');
+        }
+    };
+
+    const deleteTicket = async (id) => {
+        if (!confirm('Are you sure you want to delete this ticket?')) return;
+        try {
+            await fetchWithAuth('/tickets/delete', {
+                method: 'DELETE',
+                body: JSON.stringify({ id }),
+            });
+            loadData();
+        } catch (err) {
+            console.error('Failed to delete ticket:', err);
+            alert('Error deleting ticket');
+        }
+    };
+
     const searchPlayer = async () => {
         if (!playerSearch.trim()) return;
         try {
@@ -515,6 +567,106 @@ export default function GamingBlockDashboard() {
         setTimeout(() => successMsg.remove(), 3000);
     };
 
+    // Moderation Tab Functions
+    const togglePlayerSelection = (playerName) => {
+        setSelectedModerationPlayers(prev => {
+            if (prev.includes(playerName)) {
+                return prev.filter(name => name !== playerName);
+            } else {
+                return [...prev, playerName];
+            }
+        });
+    };
+
+    const selectAllPlayers = () => {
+        setSelectedModerationPlayers(livePlayers.map(p => p.name));
+    };
+
+    const deselectAllPlayers = () => {
+        setSelectedModerationPlayers([]);
+    };
+
+    const fetchPlayerHistory = async (playerName) => {
+        try {
+            const result = await fetchWithAuth(`/moderation/getPlayerHistory/${playerName}`);
+            if (result.data) {
+                setPlayerHistory(result.data);
+            } else {
+                setPlayerHistory([]);
+            }
+        } catch (err) {
+            console.error('Failed to fetch player history:', err);
+            setPlayerHistory([]);
+        }
+    };
+
+    const performBulkModeration = async (action) => {
+        if (selectedModerationPlayers.length === 0) {
+            alert('Please select at least one player');
+            return;
+        }
+
+        const confirmMsg = `Are you sure you want to ${action} ${selectedModerationPlayers.length} player(s)?\n\nPlayers: ${selectedModerationPlayers.join(', ')}`;
+        if (!confirm(confirmMsg)) return;
+
+        let successCount = 0;
+        let failCount = 0;
+
+        for (const playerName of selectedModerationPlayers) {
+            try {
+                let endpoint = '';
+                let body = {
+                    player: playerName,
+                    format: moderationForm.format || null,
+                    reason: moderationForm.reason || null,
+                };
+
+                switch (action) {
+                    case 'kick':
+                        endpoint = '/moderation/kick';
+                        break;
+                    case 'ban':
+                        endpoint = '/moderation/ban';
+                        break;
+                    case 'tempban':
+                        endpoint = '/moderation/tempban';
+                        body.time = moderationForm.time || null;
+                        break;
+                    case 'warn':
+                        endpoint = '/moderation/warn';
+                        break;
+                    default:
+                        continue;
+                }
+
+                const result = await fetch(`${API_BASE}${endpoint}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`,
+                    },
+                    body: JSON.stringify(body),
+                });
+
+                const data = await result.json();
+                if (data.success) {
+                    successCount++;
+                } else {
+                    failCount++;
+                }
+            } catch (err) {
+                console.error(`Failed to ${action} player ${playerName}:`, err);
+                failCount++;
+            }
+        }
+
+        showSuccessMessage(`✓ Bulk ${action}: ${successCount} succeeded, ${failCount} failed`);
+        setShowBulkModerationDialog(null);
+        setModerationForm({ format: '', reason: '', time: '' });
+        setSelectedModerationPlayers([]);
+        loadData();
+    };
+
     const viewServerLogs = async (serverId) => {
         try {
             const result = await fetchWithAuth(`/servers/logs/get/${serverId}`);
@@ -636,6 +788,7 @@ export default function GamingBlockDashboard() {
         { id: 'dashboard', label: 'Dashboard', icon: Home },
         { id: 'insights', label: 'Insights', icon: BarChart3 },
         { id: 'players', label: 'Players', icon: Gamepad2 },
+        { id: 'moderation', label: 'Moderation', icon: Shield },
         { id: 'users', label: 'Users', icon: Users },
         { id: 'roles', label: 'Roles', icon: Shield },
         { id: 'bugs', label: 'Bugs', icon: Bug },
@@ -645,6 +798,7 @@ export default function GamingBlockDashboard() {
         { id: 'servers', label: 'Servers', icon: Server },
         { id: 'suspections', label: 'Suspections', icon: Shield },
         { id: 'logs', label: 'Logs', icon: ScrollText },
+        { id: 'tickets', label: 'Tickets', icon: Ticket },
     ];
 
     return (
@@ -956,9 +1110,9 @@ export default function GamingBlockDashboard() {
                                 {/* Header */}
                                 <div className={`relative rounded-t-2xl p-6 ${
                                     showModerationDialog === 'warn' ? 'bg-gradient-to-r from-yellow-500 to-yellow-600' :
-                                    showModerationDialog === 'kick' ? 'bg-gradient-to-r from-orange-500 to-orange-600' :
-                                    showModerationDialog === 'tempban' ? 'bg-gradient-to-r from-red-500 to-red-600' :
-                                    'bg-gradient-to-r from-red-700 to-red-800'
+                                        showModerationDialog === 'kick' ? 'bg-gradient-to-r from-orange-500 to-orange-600' :
+                                            showModerationDialog === 'tempban' ? 'bg-gradient-to-r from-red-500 to-red-600' :
+                                                'bg-gradient-to-r from-red-700 to-red-800'
                                 }`}>
                                     <button
                                         onClick={() => {
@@ -1030,12 +1184,422 @@ export default function GamingBlockDashboard() {
                                             }}
                                             className={`flex-1 px-4 py-3 text-white rounded-lg font-semibold transition ${
                                                 showModerationDialog === 'warn' ? 'bg-yellow-500 hover:bg-yellow-600' :
-                                                showModerationDialog === 'kick' ? 'bg-orange-500 hover:bg-orange-600' :
-                                                showModerationDialog === 'tempban' ? 'bg-red-500 hover:bg-red-600' :
-                                                'bg-red-700 hover:bg-red-800'
+                                                    showModerationDialog === 'kick' ? 'bg-orange-500 hover:bg-orange-600' :
+                                                        showModerationDialog === 'tempban' ? 'bg-red-500 hover:bg-red-600' :
+                                                            'bg-red-700 hover:bg-red-800'
                                             }`}
                                         >
                                             Confirm {showModerationDialog === 'tempban' ? 'Temp Ban' : showModerationDialog.charAt(0).toUpperCase() + showModerationDialog.slice(1)}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Moderation Tab */}
+                    {activeTab === 'moderation' && (
+                        <div className="space-y-6 animate-fade-in">
+                            {/* Header with Bulk Actions */}
+                            <div className="bg-gray-800 rounded-xl p-6 border border-gray-700 shadow-lg">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h3 className="text-2xl font-bold text-white flex items-center gap-3">
+                                        <Shield size={28} className="text-red-500" />
+                                        Moderation Panel
+                                    </h3>
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+                                        <span className="text-red-400 text-sm font-semibold">LIVE</span>
+                                    </div>
+                                </div>
+
+                                {/* Selection Controls */}
+                                <div className="flex items-center justify-between mb-4">
+                                    <div className="flex items-center gap-4">
+                                        <span className="text-gray-400">
+                                            {selectedModerationPlayers.length} of {livePlayers.length} selected
+                                        </span>
+                                        <button
+                                            onClick={selectAllPlayers}
+                                            className="text-blue-400 hover:text-blue-300 transition text-sm font-semibold"
+                                        >
+                                            Select All
+                                        </button>
+                                        <button
+                                            onClick={deselectAllPlayers}
+                                            className="text-gray-400 hover:text-gray-300 transition text-sm font-semibold"
+                                        >
+                                            Deselect All
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Bulk Action Buttons */}
+                                {selectedModerationPlayers.length > 0 && (
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                                        <button
+                                            onClick={() => setShowBulkModerationDialog('warn')}
+                                            className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-3 rounded-lg font-semibold transition transform hover:scale-105 flex items-center justify-center gap-2"
+                                        >
+                                            <AlertTriangle size={18} />
+                                            Warn Selected ({selectedModerationPlayers.length})
+                                        </button>
+                                        <button
+                                            onClick={() => setShowBulkModerationDialog('kick')}
+                                            className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-3 rounded-lg font-semibold transition transform hover:scale-105 flex items-center justify-center gap-2"
+                                        >
+                                            <X size={18} />
+                                            Kick Selected ({selectedModerationPlayers.length})
+                                        </button>
+                                        <button
+                                            onClick={() => setShowBulkModerationDialog('tempban')}
+                                            className="bg-red-500 hover:bg-red-600 text-white px-4 py-3 rounded-lg font-semibold transition transform hover:scale-105 flex items-center justify-center gap-2"
+                                        >
+                                            <AlertTriangle size={18} />
+                                            Temp Ban Selected ({selectedModerationPlayers.length})
+                                        </button>
+                                        <button
+                                            onClick={() => setShowBulkModerationDialog('ban')}
+                                            className="bg-red-700 hover:bg-red-800 text-white px-4 py-3 rounded-lg font-semibold transition transform hover:scale-105 flex items-center justify-center gap-2"
+                                        >
+                                            <Shield size={18} />
+                                            Ban Selected ({selectedModerationPlayers.length})
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Online Players List */}
+                            <div className="bg-gray-800 rounded-xl p-6 border border-gray-700 shadow-lg">
+                                <h3 className="text-xl font-bold text-white mb-4">
+                                    Online Players ({livePlayers.length})
+                                </h3>
+
+                                {livePlayers.length === 0 ? (
+                                    <div className="text-center py-12">
+                                        <Gamepad2 size={48} className="mx-auto mb-4 text-gray-600" />
+                                        <p className="text-gray-400">No players online</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {livePlayers.map((player, i) => (
+                                            <div
+                                                key={i}
+                                                className={`bg-gray-700 rounded-lg p-4 border transition cursor-pointer ${
+                                                    selectedModerationPlayers.includes(player.name)
+                                                        ? 'border-red-500 bg-gray-600'
+                                                        : 'border-gray-600 hover:border-red-400'
+                                                }`}
+                                            >
+                                                <div className="flex items-center gap-4">
+                                                    {/* Checkbox */}
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedModerationPlayers.includes(player.name)}
+                                                        onChange={() => togglePlayerSelection(player.name)}
+                                                        className="w-5 h-5 rounded border-gray-500 text-red-500 focus:ring-red-500 cursor-pointer"
+                                                        onClick={(e) => e.stopPropagation()}
+                                                    />
+
+                                                    {/* Player Avatar */}
+                                                    <img
+                                                        src={`https://mc-heads.net/avatar/${player.name}/48`}
+                                                        alt={player.name}
+                                                        className="w-12 h-12 rounded-lg"
+                                                    />
+
+                                                    {/* Player Info */}
+                                                    <div className="flex-1">
+                                                        <h4 className="text-white font-bold text-lg">{player.name}</h4>
+                                                        <p className="text-sm text-gray-400">{player.currentServer}</p>
+                                                    </div>
+
+                                                    {/* Status Indicator */}
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                                                        <span className="text-green-400 text-sm font-semibold">Online</span>
+                                                    </div>
+
+                                                    {/* View Details Button */}
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setSelectedModerationPlayer(player);
+                                                            fetchPlayerHistory(player.name);
+                                                        }}
+                                                        className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold transition flex items-center gap-2"
+                                                    >
+                                                        <Eye size={18} />
+                                                        Details
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Moderation Player Detail Popup */}
+                    {selectedModerationPlayer && (
+                        <div
+                            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto"
+                            onClick={() => {
+                                setSelectedModerationPlayer(null);
+                                setPlayerHistory([]);
+                            }}
+                        >
+                            <div
+                                className="bg-gray-800 rounded-2xl border border-gray-700 shadow-2xl max-w-2xl w-full my-8 animate-fade-in max-h-[90vh] overflow-y-auto"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                {/* Header */}
+                                <div className="sticky top-0 z-10 relative bg-gradient-to-r from-red-500 to-red-600 rounded-t-2xl p-6">
+                                    <button
+                                        onClick={() => {
+                                            setSelectedModerationPlayer(null);
+                                            setPlayerHistory([]);
+                                        }}
+                                        className="absolute top-4 right-4 text-white hover:bg-white/20 p-2 rounded-lg transition"
+                                    >
+                                        <X size={20} />
+                                    </button>
+                                    <div className="flex flex-col items-center">
+                                        <img
+                                            src={`https://mc-heads.net/avatar/${selectedModerationPlayer.name}/128`}
+                                            alt={selectedModerationPlayer.name}
+                                            className="w-24 h-24 rounded-xl shadow-lg mb-4"
+                                        />
+                                        <h2 className="text-2xl font-bold text-white">{selectedModerationPlayer.name}</h2>
+                                        <div className="flex items-center gap-2 mt-2">
+                                            <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+                                            <span className="text-white text-sm font-semibold">Online</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Body */}
+                                <div className="p-6 space-y-4">
+                                    {/* Player Info */}
+                                    <div className="bg-gray-700 rounded-lg p-4">
+                                        <p className="text-gray-400 text-sm mb-1">Current Server</p>
+                                        <p className="text-white font-semibold text-lg">{selectedModerationPlayer.currentServer || 'Unknown'}</p>
+                                    </div>
+
+                                    {/* Player History */}
+                                    <div className="bg-gray-700 rounded-lg p-4">
+                                        <h3 className="text-white font-bold text-lg mb-3 flex items-center gap-2">
+                                            <ScrollText size={20} />
+                                            Punishment History
+                                        </h3>
+
+                                        {playerHistory.length === 0 ? (
+                                            <div className="text-center py-6">
+                                                <Shield size={32} className="mx-auto mb-2 text-gray-600" />
+                                                <p className="text-gray-400">No punishment history</p>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-2 max-h-64 overflow-y-auto">
+                                                {playerHistory.map((record, i) => (
+                                                    <div key={i} className="bg-gray-600 rounded-lg p-3 border border-gray-500">
+                                                        <div className="flex items-start justify-between mb-2">
+                                                            <span className={`px-2 py-1 rounded text-xs font-bold ${
+                                                                record.punishmentType === 'BAN' ? 'bg-red-700 text-white' :
+                                                                record.punishmentType === 'TEMP_BAN' ? 'bg-red-500 text-white' :
+                                                                record.punishmentType === 'KICK' ? 'bg-orange-500 text-white' :
+                                                                record.punishmentType === 'WARNING' ? 'bg-yellow-500 text-white' :
+                                                                'bg-gray-500 text-white'
+                                                            }`}>
+                                                                {record.punishmentType}
+                                                            </span>
+                                                            <span className="text-gray-400 text-xs">
+                                                                {new Date(record.start).toLocaleString()}
+                                                            </span>
+                                                        </div>
+                                                        <p className="text-white text-sm mb-1">
+                                                            <span className="text-gray-400">Reason:</span> {record.reason || 'No reason provided'}
+                                                        </p>
+                                                        <p className="text-gray-400 text-xs">
+                                                            <span>By:</span> {record.operator || 'Console'}
+                                                        </p>
+                                                        {record.end && (
+                                                            <p className="text-gray-400 text-xs">
+                                                                <span>Expires:</span> {new Date(record.end).toLocaleString()}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Send to Server */}
+                                    {selectedModerationPlayer.online && proxyServers.length > 0 && (
+                                        <div className="bg-gray-700 rounded-lg p-4">
+                                            <p className="text-gray-400 text-sm mb-3">Send to Server</p>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                {proxyServers.map((server, i) => {
+                                                    const isCurrentServer = selectedModerationPlayer.currentServer === server;
+                                                    return (
+                                                        <button
+                                                            key={i}
+                                                            onClick={() => sendPlayerToServer(selectedModerationPlayer.name, server)}
+                                                            className={`px-4 py-2 rounded-lg font-semibold transition ${
+                                                                isCurrentServer
+                                                                    ? 'bg-green-500 text-white cursor-not-allowed'
+                                                                    : 'bg-blue-500 hover:bg-blue-600 text-white'
+                                                            }`}
+                                                            disabled={isCurrentServer}
+                                                        >
+                                                            {server}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Moderation Actions */}
+                                    <div className="bg-gray-700 rounded-lg p-4">
+                                        <p className="text-gray-400 text-sm mb-3">Moderation Actions</p>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <button
+                                                onClick={() => {
+                                                    setSelectedPlayer(selectedModerationPlayer);
+                                                    setShowModerationDialog('warn');
+                                                    setSelectedModerationPlayer(null);
+                                                }}
+                                                className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-3 rounded-lg font-semibold transition flex items-center justify-center gap-2"
+                                            >
+                                                <AlertTriangle size={18} />
+                                                Warn
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    setSelectedPlayer(selectedModerationPlayer);
+                                                    setShowModerationDialog('kick');
+                                                    setSelectedModerationPlayer(null);
+                                                }}
+                                                className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-3 rounded-lg font-semibold transition flex items-center justify-center gap-2"
+                                            >
+                                                <X size={18} />
+                                                Kick
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    setSelectedPlayer(selectedModerationPlayer);
+                                                    setShowModerationDialog('tempban');
+                                                    setSelectedModerationPlayer(null);
+                                                }}
+                                                className="bg-red-500 hover:bg-red-600 text-white px-4 py-3 rounded-lg font-semibold transition flex items-center justify-center gap-2"
+                                            >
+                                                <AlertTriangle size={18} />
+                                                Temp Ban
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    setSelectedPlayer(selectedModerationPlayer);
+                                                    setShowModerationDialog('ban');
+                                                    setSelectedModerationPlayer(null);
+                                                }}
+                                                className="bg-red-700 hover:bg-red-800 text-white px-4 py-3 rounded-lg font-semibold transition flex items-center justify-center gap-2"
+                                            >
+                                                <Shield size={18} />
+                                                Permanent Ban
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Bulk Moderation Dialog */}
+                    {showBulkModerationDialog && (
+                        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+                            onClick={() => setShowBulkModerationDialog(null)}
+                        >
+                            <div className="bg-gray-800 rounded-2xl border border-gray-700 shadow-2xl max-w-md w-full animate-fade-in"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                <div className={`rounded-t-2xl p-6 ${
+                                    showBulkModerationDialog === 'warn' ? 'bg-gradient-to-r from-yellow-500 to-yellow-600' :
+                                    showBulkModerationDialog === 'kick' ? 'bg-gradient-to-r from-orange-500 to-orange-600' :
+                                    showBulkModerationDialog === 'tempban' ? 'bg-gradient-to-r from-red-500 to-red-600' :
+                                    'bg-gradient-to-r from-red-700 to-red-800'
+                                }`}>
+                                    <h3 className="text-2xl font-bold text-white capitalize">
+                                        Bulk {showBulkModerationDialog === 'tempban' ? 'Temp Ban' : showBulkModerationDialog}
+                                    </h3>
+                                    <p className="text-white/90 mt-2">
+                                        {selectedModerationPlayers.length} player(s) selected
+                                    </p>
+                                </div>
+
+                                <div className="p-6 space-y-4">
+                                    <div>
+                                        <label className="block text-gray-400 text-sm mb-2">Format (optional)</label>
+                                        <input
+                                            type="text"
+                                            placeholder="e.g., #1, #2, or leave empty"
+                                            value={moderationForm.format}
+                                            onChange={(e) => setModerationForm({...moderationForm, format: e.target.value})}
+                                            className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-gray-400 text-sm mb-2">Reason (optional)</label>
+                                        <textarea
+                                            placeholder="Enter reason for moderation action..."
+                                            value={moderationForm.reason}
+                                            onChange={(e) => setModerationForm({...moderationForm, reason: e.target.value})}
+                                            className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500 h-24 resize-none"
+                                        />
+                                    </div>
+
+                                    {showBulkModerationDialog === 'tempban' && (
+                                        <div>
+                                            <label className="block text-gray-400 text-sm mb-2">Duration (e.g., 2d, 1h, 30m)</label>
+                                            <input
+                                                type="text"
+                                                placeholder="e.g., 7d for 7 days"
+                                                value={moderationForm.time}
+                                                onChange={(e) => setModerationForm({...moderationForm, time: e.target.value})}
+                                                className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500"
+                                            />
+                                        </div>
+                                    )}
+
+                                    <div className="bg-gray-700 rounded-lg p-3 max-h-32 overflow-y-auto">
+                                        <p className="text-gray-400 text-sm mb-2">Selected Players:</p>
+                                        <div className="flex flex-wrap gap-2">
+                                            {selectedModerationPlayers.map((name, i) => (
+                                                <span key={i} className="bg-gray-600 px-2 py-1 rounded text-white text-sm">
+                                                    {name}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="flex gap-3 pt-2">
+                                        <button
+                                            onClick={() => setShowBulkModerationDialog(null)}
+                                            className="flex-1 bg-gray-700 hover:bg-gray-600 text-white px-4 py-3 rounded-lg font-semibold transition"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            onClick={() => performBulkModeration(showBulkModerationDialog)}
+                                            className={`flex-1 px-4 py-3 text-white rounded-lg font-semibold transition ${
+                                                showBulkModerationDialog === 'warn' ? 'bg-yellow-500 hover:bg-yellow-600' :
+                                                showBulkModerationDialog === 'kick' ? 'bg-orange-500 hover:bg-orange-600' :
+                                                showBulkModerationDialog === 'tempban' ? 'bg-red-500 hover:bg-red-600' :
+                                                'bg-red-700 hover:bg-red-800'
+                                            }`}
+                                        >
+                                            Confirm {showBulkModerationDialog === 'tempban' ? 'Temp Ban' : showBulkModerationDialog.charAt(0).toUpperCase() + showBulkModerationDialog.slice(1)}
                                         </button>
                                     </div>
                                 </div>
@@ -2033,9 +2597,9 @@ export default function GamingBlockDashboard() {
                                                         <div className="flex items-center gap-4">
                                                             <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold ${
                                                                 index === 0 ? 'bg-yellow-500' :
-                                                                index === 1 ? 'bg-gray-400' :
-                                                                index === 2 ? 'bg-orange-600' :
-                                                                'bg-blue-500'
+                                                                    index === 1 ? 'bg-gray-400' :
+                                                                        index === 2 ? 'bg-orange-600' :
+                                                                            'bg-blue-500'
                                                             }`}>
                                                                 {index + 1}
                                                             </div>
@@ -2292,10 +2856,10 @@ export default function GamingBlockDashboard() {
                                                         {/* Action Badge */}
                                                         <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
                                                             log.action?.includes('kick') || log.action?.includes('ban') || log.action?.includes('warn') || log.action?.includes('delete') ? 'bg-red-500/20 text-red-400' :
-                                                            log.action?.includes('create') || log.action?.includes('send') ? 'bg-green-500/20 text-green-400' :
-                                                            log.action?.includes('edit') || log.action?.includes('update') ? 'bg-blue-500/20 text-blue-400' :
-                                                            log.action?.includes('view') || log.action?.includes('GET') ? 'bg-gray-500/20 text-gray-400' :
-                                                            'bg-purple-500/20 text-purple-400'
+                                                                log.action?.includes('create') || log.action?.includes('send') ? 'bg-green-500/20 text-green-400' :
+                                                                    log.action?.includes('edit') || log.action?.includes('update') ? 'bg-blue-500/20 text-blue-400' :
+                                                                        log.action?.includes('view') || log.action?.includes('GET') ? 'bg-gray-500/20 text-gray-400' :
+                                                                            'bg-purple-500/20 text-purple-400'
                                                         }`}>
                                                             {log.action || 'Unknown'}
                                                         </span>
@@ -2361,6 +2925,240 @@ export default function GamingBlockDashboard() {
                         </div>
                     )}
 
+                    {/* Tickets Tab */}
+                    {activeTab === 'tickets' && (
+                        <div className="space-y-6 animate-fade-in">
+                            {/* Header with Filter */}
+                            <div className="bg-gray-800 rounded-xl p-6 border border-gray-700 shadow-lg">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h3 className="text-2xl font-bold text-white flex items-center gap-3">
+                                        <Ticket size={28} className="text-blue-500" />
+                                        Support Tickets
+                                    </h3>
+                                    <div className="flex items-center gap-4">
+                                        <span className="text-gray-400">
+                                            {tickets.filter(t => !t.finished).length} open tickets
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* Filter Buttons */}
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => setTicketStatusFilter('all')}
+                                        className={`px-4 py-2 rounded-lg font-semibold transition ${
+                                            ticketStatusFilter === 'all'
+                                                ? 'bg-blue-500 text-white'
+                                                : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                                        }`}
+                                    >
+                                        All ({tickets.length})
+                                    </button>
+                                    <button
+                                        onClick={() => setTicketStatusFilter('in progress')}
+                                        className={`px-4 py-2 rounded-lg font-semibold transition ${
+                                            ticketStatusFilter === 'in progress'
+                                                ? 'bg-yellow-500 text-white'
+                                                : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                                        }`}
+                                    >
+                                        In Progress ({tickets.filter(t => t.status === 'in progress' && !t.finished).length})
+                                    </button>
+                                    <button
+                                        onClick={() => setTicketStatusFilter('finished')}
+                                        className={`px-4 py-2 rounded-lg font-semibold transition ${
+                                            ticketStatusFilter === 'finished'
+                                                ? 'bg-green-500 text-white'
+                                                : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                                        }`}
+                                    >
+                                        Finished ({tickets.filter(t => t.finished).length})
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Tickets List */}
+                            <div className="bg-gray-800 rounded-xl p-6 border border-gray-700 shadow-lg">
+                                {tickets.length === 0 ? (
+                                    <div className="text-center py-12">
+                                        <Ticket size={48} className="mx-auto mb-4 text-gray-600" />
+                                        <p className="text-gray-400">No tickets found</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4">
+                                        {tickets
+                                            .filter(ticket => {
+                                                if (ticketStatusFilter === 'all') return true;
+                                                if (ticketStatusFilter === 'finished') return ticket.finished;
+                                                return ticket.status === ticketStatusFilter && !ticket.finished;
+                                            })
+                                            .sort((a, b) => b.id - a.id)
+                                            .map((ticket) => (
+                                                <div
+                                                    key={ticket.id}
+                                                    className="bg-gray-700 rounded-lg p-5 border border-gray-600 hover:border-blue-500 transition cursor-pointer"
+                                                    onClick={() => setSelectedTicket(ticket)}
+                                                >
+                                                    <div className="flex items-start justify-between">
+                                                        <div className="flex-1">
+                                                            <div className="flex items-center gap-3 mb-2">
+                                                                <span className="text-gray-400 text-sm font-mono">#{ticket.id}</span>
+                                                                <h4 className="text-white font-bold text-lg">{ticket.name}</h4>
+                                                                {ticket.finished ? (
+                                                                    <span className="px-3 py-1 bg-green-500/20 text-green-400 rounded-full text-xs font-bold flex items-center gap-1">
+                                                                        <CheckCircle size={14} />
+                                                                        Finished
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                                                                        ticket.status === 'in progress' ? 'bg-yellow-500/20 text-yellow-400' :
+                                                                        'bg-blue-500/20 text-blue-400'
+                                                                    }`}>
+                                                                        {ticket.status}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <p className="text-gray-400 text-sm line-clamp-2">{ticket.content}</p>
+                                                        </div>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setSelectedTicket(ticket);
+                                                            }}
+                                                            className="ml-4 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold transition flex items-center gap-2"
+                                                        >
+                                                            <Eye size={18} />
+                                                            View
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Ticket Detail Popup */}
+                    {selectedTicket && (
+                        <div
+                            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto"
+                            onClick={() => setSelectedTicket(null)}
+                        >
+                            <div
+                                className="bg-gray-800 rounded-2xl border border-gray-700 shadow-2xl max-w-2xl w-full my-8 animate-fade-in"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                {/* Header */}
+                                <div className={`relative rounded-t-2xl p-6 ${
+                                    selectedTicket.finished ? 'bg-gradient-to-r from-green-500 to-green-600' :
+                                    'bg-gradient-to-r from-blue-500 to-blue-600'
+                                }`}>
+                                    <button
+                                        onClick={() => setSelectedTicket(null)}
+                                        className="absolute top-4 right-4 text-white hover:bg-white/20 p-2 rounded-lg transition"
+                                    >
+                                        <X size={20} />
+                                    </button>
+                                    <div className="flex items-center gap-4">
+                                        <div className="bg-white/20 p-4 rounded-xl">
+                                            <Ticket size={32} className="text-white" />
+                                        </div>
+                                        <div>
+                                            <h2 className="text-2xl font-bold text-white mb-1">{selectedTicket.name}</h2>
+                                            <p className="text-white/90 text-sm">Ticket #{selectedTicket.id}</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Body */}
+                                <div className="p-6 space-y-4">
+                                    {/* Status Badge */}
+                                    <div className="flex items-center gap-3">
+                                        {selectedTicket.finished ? (
+                                            <span className="px-4 py-2 bg-green-500/20 text-green-400 rounded-lg text-sm font-bold flex items-center gap-2">
+                                                <CheckCircle size={18} />
+                                                Finished
+                                            </span>
+                                        ) : (
+                                            <span className={`px-4 py-2 rounded-lg text-sm font-bold ${
+                                                selectedTicket.status === 'in progress' ? 'bg-yellow-500/20 text-yellow-400' :
+                                                'bg-blue-500/20 text-blue-400'
+                                            }`}>
+                                                {selectedTicket.status}
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    {/* Content */}
+                                    <div className="bg-gray-700 rounded-lg p-4">
+                                        <p className="text-gray-400 text-sm mb-2">Message</p>
+                                        <p className="text-white whitespace-pre-wrap">{selectedTicket.content}</p>
+                                    </div>
+
+                                    {/* Actions */}
+                                    {!selectedTicket.finished && (
+                                        <div className="bg-gray-700 rounded-lg p-4">
+                                            <p className="text-gray-400 text-sm mb-3">Manage Ticket</p>
+                                            <div className="space-y-3">
+                                                {/* Status Update */}
+                                                <div className="flex gap-3">
+                                                    <button
+                                                        onClick={() => {
+                                                            updateTicketStatus(selectedTicket.id, 'in progress');
+                                                            setSelectedTicket(null);
+                                                        }}
+                                                        className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-3 rounded-lg font-semibold transition"
+                                                    >
+                                                        Mark In Progress
+                                                    </button>
+                                                    <button
+                                                        onClick={() => {
+                                                            finishTicket(selectedTicket.id);
+                                                            setSelectedTicket(null);
+                                                        }}
+                                                        className="flex-1 bg-green-500 hover:bg-green-600 text-white px-4 py-3 rounded-lg font-semibold transition flex items-center justify-center gap-2"
+                                                    >
+                                                        <CheckCircle size={18} />
+                                                        Mark Finished
+                                                    </button>
+                                                </div>
+
+                                                {/* Delete */}
+                                                <button
+                                                    onClick={() => {
+                                                        deleteTicket(selectedTicket.id);
+                                                        setSelectedTicket(null);
+                                                    }}
+                                                    className="w-full bg-red-500 hover:bg-red-600 text-white px-4 py-3 rounded-lg font-semibold transition flex items-center justify-center gap-2"
+                                                >
+                                                    <Trash2 size={18} />
+                                                    Delete Ticket
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* If finished, show delete only */}
+                                    {selectedTicket.finished && (
+                                        <div className="bg-gray-700 rounded-lg p-4">
+                                            <button
+                                                onClick={() => {
+                                                    deleteTicket(selectedTicket.id);
+                                                    setSelectedTicket(null);
+                                                }}
+                                                className="w-full bg-red-500 hover:bg-red-600 text-white px-4 py-3 rounded-lg font-semibold transition flex items-center justify-center gap-2"
+                                            >
+                                                <Trash2 size={18} />
+                                                Delete Ticket
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Log Detail Popup */}
                     {selectedLog && (
                         <div
@@ -2397,10 +3195,10 @@ export default function GamingBlockDashboard() {
                                         <p className="text-gray-400 text-sm mb-2">Action</p>
                                         <span className={`inline-block px-4 py-2 rounded-lg text-base font-semibold ${
                                             selectedLog.action?.includes('kick') || selectedLog.action?.includes('ban') || selectedLog.action?.includes('warn') || selectedLog.action?.includes('delete') ? 'bg-red-500/20 text-red-400' :
-                                            selectedLog.action?.includes('create') || selectedLog.action?.includes('send') ? 'bg-green-500/20 text-green-400' :
-                                            selectedLog.action?.includes('edit') || selectedLog.action?.includes('update') ? 'bg-blue-500/20 text-blue-400' :
-                                            selectedLog.action?.includes('view') || selectedLog.action?.includes('GET') ? 'bg-gray-500/20 text-gray-400' :
-                                            'bg-purple-500/20 text-purple-400'
+                                                selectedLog.action?.includes('create') || selectedLog.action?.includes('send') ? 'bg-green-500/20 text-green-400' :
+                                                    selectedLog.action?.includes('edit') || selectedLog.action?.includes('update') ? 'bg-blue-500/20 text-blue-400' :
+                                                        selectedLog.action?.includes('view') || selectedLog.action?.includes('GET') ? 'bg-gray-500/20 text-gray-400' :
+                                                            'bg-purple-500/20 text-purple-400'
                                         }`}>
                                             {selectedLog.action || 'Unknown Action'}
                                         </span>
@@ -2445,19 +3243,19 @@ export default function GamingBlockDashboard() {
                                         <div className="space-y-1">
                                             <p className="text-white font-semibold">
                                                 📅 {new Date(selectedLog.timestamp).toLocaleDateString('en-US', {
-                                                    weekday: 'long',
-                                                    year: 'numeric',
-                                                    month: 'long',
-                                                    day: 'numeric'
-                                                })}
+                                                weekday: 'long',
+                                                year: 'numeric',
+                                                month: 'long',
+                                                day: 'numeric'
+                                            })}
                                             </p>
                                             <p className="text-gray-300 font-mono">
                                                 🕐 {new Date(selectedLog.timestamp).toLocaleTimeString('en-US', {
-                                                    hour12: true,
-                                                    hour: '2-digit',
-                                                    minute: '2-digit',
-                                                    second: '2-digit'
-                                                })}
+                                                hour12: true,
+                                                hour: '2-digit',
+                                                minute: '2-digit',
+                                                second: '2-digit'
+                                            })}
                                             </p>
                                         </div>
                                     </div>
