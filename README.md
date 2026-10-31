@@ -1,3 +1,5 @@
+# DISCONTINUED - REWRITING AND UPDATING THE ENTIRE PROJECT TO TYPESCRIPT
+
 # GamingBlock Internal Management System
 
 ## Overview
